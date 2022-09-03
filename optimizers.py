@@ -39,10 +39,10 @@ class Optimizer:
                     break
                 
             history.append(x)
-        if return_history:
-            return x, history
-        else:
-            return x
+        # if return_history:
+        #     return x, history
+        # else:
+        #     return x
 
     def frac_optimizer(self, f, x0, lr=0.5, alpha=0.98, max_iter=1000, return_history=False):
         x = x0
@@ -65,10 +65,10 @@ class Optimizer:
                     break
             # history.append(x)
             # print(x)
-        if return_history:
-            return history[-1], history
-        else:
-            return history[-1]
+        # if return_history:
+        #     return history[-1], history
+        # else:
+        #     return history[-1]
 
     def multi_frac_optimizer(self, f, x0, lr=0.5, alpha1=0.9, alpha2=1.1, max_iter=1000, return_history=False):
         x = x0
@@ -94,10 +94,10 @@ class Optimizer:
                     break
             # history.append(x)
             # print(x)
-        if return_history:
-            return history[-1], history
-        else:
-            return history[-1]
+        # if return_history:
+        #     return history[-1], history
+        # else:
+        #     return history[-1]
 
     def dist_frac_optimizer(self, f, x0, lr=0.5, alpha1=0.9, alpha2=1.1, N=50, max_iter=1000, return_history=False):
         x = x0
@@ -130,7 +130,7 @@ class Optimizer:
                     break
             # history.append(x)
             # print(x)
-        if return_history:
-            return history[-1], history
-        else:
-            return history[-1]
+        # if return_history:
+        #     return history[-1], history
+        # else:
+        #     return history[-1]
