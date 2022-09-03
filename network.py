@@ -58,12 +58,9 @@ class Net:
     def categorical_cross_entropy(self, w):
         # we use this ([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 10 ** 6]) for handling log(0) and preventing -Inf error.
         # print("loss calculate")
-        s = time.time()
         predict = self.softmax(self.forward(w))
         # predict = self.softmax(self.forward_less())
         loss = -(1/self.batch_size) * np.sum([target * np.log([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 0.1 ** 14]) for i, target in enumerate(self.y[self.batch_counter: self.batch_counter + self.batch_size])])
-        e = time.time()
-        print("@@@@@@@@@@@@@", e-s)
         # self.batch_counter += self.batch_size
         # print("batch_couter: ", self.batch_counter)
         return  loss
