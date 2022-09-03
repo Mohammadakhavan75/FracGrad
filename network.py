@@ -1,5 +1,4 @@
 from  scipy.integrate import quad
-import differint.differint as df
 import itertools
 import copy
 import numpy as np
