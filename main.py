@@ -8,6 +8,8 @@ from tensorflow.keras.layers import Dense
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 import seaborn as sns
+import pickle 
+import time
 
 def load_mnist():
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -57,71 +59,88 @@ x_train = pca.fit_transform(x_train)
 
 
 print("Starting GD")
+s=time.time()
 epoch = 5
 model = Net(x_train, y_train, [10, 10], batch_size=64)
 hist_int = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print("Batch step: ", b)
-        opt.optimizer(model.categorical_cross_entropy, model.w_flatten, lr=0.03)
-        hist_int.append(model.categorical_cross_entropy())
+        print(f"GD, EPOCH: {ep}, Batch step: {b}")
+        opt.optimizer(model.categorical_cross_entropy, model.w_flatten, lr=0.03, max_iter=10)
+        hist_int.append(model.categorical_cross_entropy(model.w_flatten))
 
         model.batch_counter += model.batch_size
 
+d=time.time()
+print(f"time is: {d-s}")
+
+with open('hist_int.pkl', 'wb') as f:
+    pickle.dump(hist_int, f)
+
 print("Starting Fractional")
+s=time.time()
 epoch = 5
 model = Net(x_train, y_train, [10, 10], batch_size=64)
 hist_frac = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print("Batch step: ", b)
-        opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha=0.9, return_history=True)
-        hist_frac.append(model.categorical_cross_entropy())
+        print(f"Fractional, EPOCH: {ep}, Batch step: {b}")
+        opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha=0.9, max_iter=10)
+        hist_frac.append(model.categorical_cross_entropy(model.w_flatten))
 
         model.batch_counter += model.batch_size
 
+d=time.time()
+print(f"time is: {d-s}")
+
+with open('hist_frac.pkl', 'wb') as f:
+    pickle.dump(hist_int, f)
+
 print("Starting Multi Fractional")
+s=time.time()
 epoch = 5
 model = Net(x_train, y_train, [10, 10], batch_size=64)
 hist_multi = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print("Batch step: ", b)
-        opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=1.1, alpha2=0.9, return_history=True)
-        hist_multi.append(model.categorical_cross_entropy())
+        print(f"Multi, EPOCH: {ep}, Batch step: {b}")
+        opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
+        hist_multi.append(model.categorical_cross_entropy(model.w_flatten))
         
         model.batch_counter += model.batch_size
 
+d=time.time()
+print(f"time is: {d-s}")
+
+with open('hist_multi.pkl', 'wb') as f:
+    pickle.dump(hist_int, f)
+
+
 print("Starting Distribute Fractional")
+s=time.time()
 epoch = 5
 model = Net(x_train, y_train, [10, 10], batch_size=64)
 hist_dist = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print("Batch step: ", b)
-        x, history_dist_frac = opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.1, alpha2=1.1, return_history=True)
-        hist_dist.append(model.categorical_cross_entropy())
+        print(f"Distribute, EPOCH: {ep}, Batch step: {b}")
+        opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
+        hist_dist.append(model.categorical_cross_entropy(model.w_flatten))
 
         model.batch_counter += model.batch_size
+
+d=time.time()
+print(f"time is: {d-s}")
+
+with open('hist_dist.pkl', 'wb') as f:
+    pickle.dump(hist_int, f)
 
 sns.lineplot(hist_int, label="int")
 sns.lineplot(hist_frac, label="frac")
 sns.lineplot(hist_multi, label="multi")
 sns.lineplot(hist_dist, label="dist")
 plt.savefig("History.png", dpi=500)
-
-with open('hist_int.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
-
-with open('hist_frac.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
-
-with open('hist_multi.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
-
-with open('hist_dist.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
