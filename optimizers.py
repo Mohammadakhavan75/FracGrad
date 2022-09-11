@@ -21,7 +21,7 @@ class Optimizer:
         return g
 
 
-    def optimizer(self, f, x0, lr=0.1, max_iter=500, return_history=False):
+    def optimizer(self, f, x0, model, lr=0.1, max_iter=500, return_history=False):
         x = x0
         history = [x]
         for i in range(max_iter):
@@ -29,6 +29,7 @@ class Optimizer:
 
             if f(x_new) < f(x):
                 x = x_new
+                model.w_flatten = x_new.copy()
             else:
                 # print(f"Updating learning rate: {lr}")
                 lr = 0.8*lr
@@ -42,7 +43,7 @@ class Optimizer:
         # else:
         #     return x
 
-    def frac_optimizer(self, f, x0, lr=0.5, alpha=0.98, max_iter=1000, return_history=False):
+    def frac_optimizer(self, f, x0, model, lr=0.5, alpha=0.98, max_iter=1000, return_history=False):
         x = x0
         history = [x]
         x_new = x - lr * self.grad(f, x)
@@ -53,6 +54,7 @@ class Optimizer:
             x_new_new = history[indx+1] - (lr/gamma(2-alpha)) * self.grad(f, history[indx]) * np.abs(history[indx+1] - history[indx]) ** (1-alpha)
             if f(x_new_new) < f(history[indx+1]):
                 history.append(x_new_new)
+                model.w_flatten = x_new_new.copy()
                 indx += 1
             else:
                 
@@ -68,7 +70,7 @@ class Optimizer:
         # else:
         #     return history[-1]
 
-    def multi_frac_optimizer(self, f, x0, lr=0.5, alpha1=0.9, alpha2=1.1, max_iter=1000, return_history=False):
+    def multi_frac_optimizer(self, f, x0, model, lr=0.5, alpha1=0.9, alpha2=1.1, max_iter=1000, return_history=False):
         x = x0
         history = [x]
         x_new = x - lr * self.grad(f, x)
@@ -82,6 +84,7 @@ class Optimizer:
             x_new_new = history[indx+1] - lr*(0.5*t1 + 0.5*t2)
             if f(x_new_new) < f(history[indx+1]):
                 history.append(x_new_new)
+                model.w_flatten = x_new_new.copy()
                 indx += 1
             else:
                 
@@ -97,7 +100,7 @@ class Optimizer:
         # else:
         #     return history[-1]
 
-    def dist_frac_optimizer(self, f, x0, lr=0.5, alpha1=0.9, alpha2=1.1, N=50, max_iter=1000, return_history=False):
+    def dist_frac_optimizer(self, f, x0, model, lr=0.5, alpha1=0.9, alpha2=1.1, N=50, max_iter=1000, return_history=False):
         x = x0
         history = [x]
         x_new = x - lr * self.grad(f, x)
@@ -119,6 +122,7 @@ class Optimizer:
             x_new_new = history[indx+1] - lr*delta
             if f(x_new_new) < f(history[indx+1]):
                 history.append(x_new_new)
+                model.w_flatten = x_new_new.copy()
                 indx += 1
             else:
                 # print(f"Updating learning rate: {lr}")

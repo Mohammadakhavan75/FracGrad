@@ -66,14 +66,18 @@ hist_int = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print(f"GD, EPOCH: {ep}, Batch step: {b}")
-        opt.optimizer(model.categorical_cross_entropy, model.w_flatten, lr=0.03, max_iter=10)
-        hist_int.append(model.categorical_cross_entropy(model.w_flatten))
-
+        opt.optimizer(model.categorical_cross_entropy, model.w_flatten, model,lr=0.03, max_iter=10)
+        temp_loss = model.categorical_cross_entropy(model.w_flatten)
+        hist_int.append(temp_loss)
+        print(f"GD, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
+        
         model.batch_counter += model.batch_size
-
+    
 d=time.time()
 print(f"time is: {d-s}")
+
+sns.lineplot(hist_int, label="int")
+plt.savefig("Int_Loss.png", dpi=500)
 
 with open('hist_int.pkl', 'wb') as f:
     pickle.dump(hist_int, f)
@@ -86,17 +90,22 @@ hist_frac = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print(f"Fractional, EPOCH: {ep}, Batch step: {b}")
-        opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha=0.9, max_iter=10)
-        hist_frac.append(model.categorical_cross_entropy(model.w_flatten))
+        opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha=0.9, max_iter=10)
+        temp_loss = model.categorical_cross_entropy(model.w_flatten)
+        hist_frac.append(temp_loss)
+        print(f"Fractional, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
 
         model.batch_counter += model.batch_size
 
 d=time.time()
 print(f"time is: {d-s}")
 
+sns.lineplot(hist_int, label="int")
+sns.lineplot(hist_frac, label="frac")
+plt.savefig("Int_Frac.png", dpi=500)
+
 with open('hist_frac.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
+    pickle.dump(hist_frac, f)
 
 print("Starting Multi Fractional")
 s=time.time()
@@ -106,17 +115,23 @@ hist_multi = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print(f"Multi, EPOCH: {ep}, Batch step: {b}")
-        opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
-        hist_multi.append(model.categorical_cross_entropy(model.w_flatten))
+        opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
+        temp_loss = model.categorical_cross_entropy(model.w_flatten)
+        hist_multi.append(temp_loss)
+        print(f"Multi, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
 
 d=time.time()
 print(f"time is: {d-s}")
 
+sns.lineplot(hist_int, label="int")
+sns.lineplot(hist_frac, label="frac")
+sns.lineplot(hist_multi, label="multi")
+plt.savefig("Int_Frac_Multi.png", dpi=500)
+
 with open('hist_multi.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
+    pickle.dump(hist_multi, f)
 
 
 print("Starting Distribute Fractional")
@@ -127,20 +142,21 @@ hist_dist = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
-        print(f"Distribute, EPOCH: {ep}, Batch step: {b}")
-        opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
-        hist_dist.append(model.categorical_cross_entropy(model.w_flatten))
-
+        opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
+        temp_loss = model.categorical_cross_entropy(model.w_flatten)
+        hist_dist.append(temp_loss)
+        print(f"Distribute, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
+        
         model.batch_counter += model.batch_size
 
 d=time.time()
 print(f"time is: {d-s}")
 
 with open('hist_dist.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
+    pickle.dump(hist_dist, f)
 
 sns.lineplot(hist_int, label="int")
 sns.lineplot(hist_frac, label="frac")
 sns.lineplot(hist_multi, label="multi")
 sns.lineplot(hist_dist, label="dist")
-plt.savefig("History.png", dpi=500)
+plt.savefig("Int_Frac_Multi_Dist.png", dpi=500)

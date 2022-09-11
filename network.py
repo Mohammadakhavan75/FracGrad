@@ -1,8 +1,7 @@
 from  scipy.integrate import quad
-import itertools
-import copy
 import numpy as np
 import time 
+import pickle
 
 class Net:
     def __init__(self, x, y, layers, batch_size=32):
@@ -31,6 +30,12 @@ class Net:
         flat_w = [xx for x in temp for xx in x]
         return np.asarray(flat_w)
 
+    def update_batch_counter(self):
+        self.batch_counter += self.batch_size
+
+    def reset_batch_counter(self):
+        self.batch_counter = 0
+
     def forward(self, w):
         # print("forward calculate")
         H = self.x[self.batch_counter: self.batch_counter + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
@@ -45,6 +50,22 @@ class Net:
             H = H @ np.asarray(np.reshape(self.w_flatten[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))
 
         return H
+
+    def eval(self, w, x, y):
+        total_loss = []
+        self.reset_batch_counter()
+        for _ in range(int(x.shape[0]/self.batch_size)):
+            print(self.batch_counter)
+            H = x[self.batch_counter: self.batch_counter + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
+            for i in range(1, len(self.layers)):
+                H = H @ np.asarray(np.reshape(w[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))        
+            
+            predict = self.softmax(H)
+            loss = -(1/self.batch_size) * np.sum([target * np.log([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 0.1 ** 14]) for i, target in enumerate(y[self.batch_counter: self.batch_counter + self.batch_size])])
+            total_loss.append(loss)
+            self.update_batch_counter()
+
+        return np.mean(total_loss)
 
     def softmax(self, output):
         # print("softmax calculate")
@@ -63,3 +84,14 @@ class Net:
         # self.batch_counter += self.batch_size
         # print("batch_couter: ", self.batch_counter)
         return  loss
+
+    def save_model(self, path, name="model"):
+        with open(path + name + '.pkl', 'wb') as f:
+            pickle.dump(self.w_flatten, f)
+
+        with open(path + name + '_shape.pkl', 'wb') as f:
+            pickle.dump(self.w_shape, f)
+
+    def load_model(self, path_model, path_shape):
+        self.w_flatten = pickle.load(open(path_model,'rb'))
+        self.w_shape = pickle.load(open(path_shape,'rb'))
