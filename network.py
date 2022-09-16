@@ -2,6 +2,8 @@ from  scipy.integrate import quad
 import numpy as np
 import time 
 import pickle
+import tensorflow as tf
+from sklearn.metrics import accuracy_score
 
 class Net:
     def __init__(self, x, y, layers, batch_size=32):
@@ -51,21 +53,29 @@ class Net:
 
         return H
 
+    def prediction(self, w, x, b_c):
+        H = x[b_c: b_c + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
+        for i in range(1, len(self.layers)):
+            H = H @ np.asarray(np.reshape(w[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))        
+        
+        return self.softmax(H)
+
     def eval(self, w, x, y):
         total_loss = []
+        preds = []
         self.reset_batch_counter()
         for _ in range(int(x.shape[0]/self.batch_size)):
-            print(self.batch_counter)
-            H = x[self.batch_counter: self.batch_counter + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
-            for i in range(1, len(self.layers)):
-                H = H @ np.asarray(np.reshape(w[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))        
+            predict = self.prediction(w, x, self.batch_counter)
+            for p in predict:
+                preds.append(np.argmax(p))
             
-            predict = self.softmax(H)
             loss = -(1/self.batch_size) * np.sum([target * np.log([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 0.1 ** 14]) for i, target in enumerate(y[self.batch_counter: self.batch_counter + self.batch_size])])
             total_loss.append(loss)
             self.update_batch_counter()
+        
+        preds = tf.keras.utils.to_categorical(preds, 10)
+        return np.mean(total_loss), accuracy_score(y_true=y[:len(preds)], y_pred=preds)
 
-        return np.mean(total_loss)
 
     def softmax(self, output):
         # print("softmax calculate")
