@@ -39,7 +39,6 @@ class Net:
         self.batch_counter = 0
 
     def forward(self, w):
-        # print("forward calculate")
         H = self.x[self.batch_counter: self.batch_counter + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
         for i in range(1, len(self.layers)):
             H = H @ np.asarray(np.reshape(w[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))
@@ -52,6 +51,9 @@ class Net:
             H = H @ np.asarray(np.reshape(self.w_flatten[self.w_shape[i-1][0] * self.w_shape[i-1][1]:(self.w_shape[i-1][0] * self.w_shape[i-1][1]) + (self.w_shape[i][0] * self.w_shape[i][1])], self.w_shape[i]))
 
         return H
+
+    def fit(self, w, optimizer):
+        pass
 
     def prediction(self, w, x, b_c):
         H = x[b_c: b_c + self.batch_size] @ np.asarray(np.reshape(w[:self.w_shape[0][0] * self.w_shape[0][1]], self.w_shape[0]))
@@ -78,7 +80,6 @@ class Net:
 
 
     def softmax(self, output):
-        # print("softmax calculate")
         return (np.exp(output.T)/np.exp(output.T).sum(axis=0)).T
         # return np.asarray([np.asarray([np.exp(one)/ np.sum(np.exp(one_output)) for one in one_output]) for one_output in output])
     
@@ -87,12 +88,8 @@ class Net:
 
     def categorical_cross_entropy(self, w):
         # we use this ([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 10 ** 6]) for handling log(0) and preventing -Inf error.
-        # print("loss calculate")
         predict = self.softmax(self.forward(w))
-        # predict = self.softmax(self.forward_less())
         loss = -(1/self.batch_size) * np.sum([target * np.log([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 0.1 ** 14]) for i, target in enumerate(self.y[self.batch_counter: self.batch_counter + self.batch_size])])
-        # self.batch_counter += self.batch_size
-        # print("batch_couter: ", self.batch_counter)
         return  loss
 
     def save_model(self, path, name="model"):
