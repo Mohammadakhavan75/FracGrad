@@ -137,7 +137,7 @@ class Optimizer:
         # else:
         #     return history[-1]
 
-    def frac_opt(self, x, f, mdoel, lr, D, max_iter=10):
+    def gen_frac_opt(self, f, x, mdoel, D, lr=0.3, max_iter=10):
         history = [x]
         for _ in range(max_iter):
             x_new = x - lr * D(f, x)
@@ -146,7 +146,10 @@ class Optimizer:
                 mdoel.w_flatten = x_new.copy()
             else:
                 lr = 0.8*lr
-                if lr < 0.1 ** 12:
+                if isinstance(lr, list):
+                    if np.mean(lr) < 0.1 ** 12:
+                        break
+                elif lr < 0.1 ** 12:
                     break
                 
             history.append(x_new)
@@ -155,31 +158,31 @@ class Optimizer:
         return gamma(p + 1)/(gamma(q + 1) * gamma(p - q + 1))
     
     # Solution 2
-    def Glearning_rate(self, xk, alpha, c=0, epsilon=0.0001):
+    def Glearning_rate(self, xk, alpha=0.9, c=0, epsilon=0.0001):
         return (1/gamma(2-alpha)) * (np.abs(xk - c) + epsilon) ** (1 - alpha)
 
-    def Reimann_Liouville(self, fi, x, alpha=0.9, N=100, c=0):
+    def Reimann_Liouville(self, fi, x, alpha=0.9, N=1, c=0):
         result = []
         for i in range(N):
             result.append((fi(x) /gamma(i + 1 - alpha)) * (x - c) ** i-alpha)
 
         return np.sum(np.asarray(result))
 
-    def Caputo(self, fi, x, alpha=0.9, n=10, N=110, c=0):
+    def Caputo(self, fi, x, alpha=0.9, n=0, N=1, c=0):
         result = []
         for i in range(n, N):
             result.append((fi(x) /gamma(i + 1 - alpha)) * (x - c) ** i-alpha)
         
         return np.sum(np.asarray(result))
 
-    def Reimann_Liouville_fromG(self, fi, x, alpha=0.9, N=100, c=0):
+    def Reimann_Liouville_fromG(self, fi, x, alpha=0.9, N=1, c=0):
         result = []
         for i in range(N):
             result.append(self.Ggamma(p=alpha, q=i) * (fi(x) /gamma(i + 1 - alpha)) * (x - c) ** i-alpha)
 
         return np.sum(np.asarray(result))
 
-    def Caputo_fromG(self, fi, x, alpha=0.9, n=10, N=110, c=0):
+    def Caputo_fromG(self, fi, x, alpha=0.9, n=0, N=1, c=0):
         result = []
         for i in range(n, N):
             result.append(self.Ggamma(p=alpha-n, q=i-n) * (fi(x) /gamma(i + 1 - alpha)) * (x - c) ** i-alpha)
