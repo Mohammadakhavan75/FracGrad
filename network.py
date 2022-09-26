@@ -92,7 +92,7 @@ class Net:
         loss = -(1/self.batch_size) * np.sum([target * np.log([predict[i][np.argmax(target)]if predict[i][np.argmax(target)] != 0 else 0.1 ** 14]) for i, target in enumerate(self.y[self.batch_counter: self.batch_counter + self.batch_size])])
         return  loss
 
-    def save_model(self, path, name="model"):
+    def save_model(self, path='./', name="model"):
         with open(path + name + '.pkl', 'wb') as f:
             pickle.dump(self.w_flatten, f)
 
