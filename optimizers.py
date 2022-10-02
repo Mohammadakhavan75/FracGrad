@@ -21,7 +21,7 @@ class Optimizer:
         return g
 
 
-    def optimizer(self, f, x0, model, lr=0.1, max_iter=500, return_history=False):
+    def optimizer(self, f, x0, model, lr=0.03, max_iter=10, return_history=False):
         x = x0
         history = [x]
         for i in range(max_iter):
@@ -126,7 +126,7 @@ class Optimizer:
                 indx += 1
             else:
                 # print(f"Updating learning rate: {lr}")
-                lr = 0.8*lr
+                lr = 0.8 * lr
                 if lr < 0.1 ** 12:
                     # print("Early STOP!!!")
                     break
@@ -140,7 +140,7 @@ class Optimizer:
     def gen_frac_opt(self, f, x, mdoel, D, lr=0.3, max_iter=10):
         history = [x]
         for _ in range(max_iter):
-            x_new = x - lr * D(f, x)
+            x_new = x - lr * D
             if f(x_new) < f(x):
                 x = x_new
                 mdoel.w_flatten = x_new.copy()
