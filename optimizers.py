@@ -154,6 +154,24 @@ class Optimizer:
                 
             history.append(x_new)
 
+    def easy_frac_opt(self, f, x, D, lr=0.3, max_iter=10):
+        for _ in range(max_iter):
+            x_new = x.copy()
+            for i in range(x.shape[0]):
+                x_new[i] = x[i] - lr * D(f, x[i])
+
+            if f(x_new) < f(x):
+                x = x_new
+            else:
+                lr = 0.8 * lr
+                if isinstance(lr, list):
+                    if np.mean(lr) < 0.1 ** 12:
+                        break
+                elif lr < 0.1 ** 12:
+                    break
+
+
+
     def Ggamma(self, p, q):
         return gamma(p + 1)/(gamma(q + 1) * gamma(p - q + 1))
     

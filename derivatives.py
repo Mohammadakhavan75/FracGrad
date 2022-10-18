@@ -9,16 +9,20 @@ class local:
         return x
 
     def Kprim(self, x):
-        return 1
+        return int(1)
 
-    def chen(self, f, x, alpha=0.9):
-        if x > 0:
-            s = x - 0.1**4
-            out = (f(x) - f(s)) / (x ** alpha - s ** alpha)
-        if x < 0:
-            s = x + 0.1**4
-            out = (f(x) - f(s)) / (s ** alpha - x ** alpha)
+    def grad(self, f, x, epsilon=0.1 ** 4):
+        return (f(x + epsilon) - f(x)) / epsilon
+        
+    def chen(f, x, alpha=0.9):
+        out = x.copy()
+        s = x[x>0] - 0.1**4
+        out[x>0] = (f(x[x>0]) - f(s)) / (x[x>0] ** alpha - s ** alpha)
+        s = x[x<0] + 0.1**4
+        out[x<0] = (f(x[x<0]) - f(s)) / (s ** alpha - x[x<0] ** alpha)
+
         return out
+
 
     def conformable(self, f, x, alpha=0.9, epsilon=0.1 ** 4):
         out = (f(x + epsilon * x ** (1-alpha)) - f(x)) / epsilon
