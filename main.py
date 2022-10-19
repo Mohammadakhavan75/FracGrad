@@ -56,7 +56,7 @@ opt = Optimizer()
 x_train, y_train, x_test, y_test= load_mnist()
 pca = PCA(10)
 x_train = pca.fit_transform(x_train)
-
+x_test = pca.transform(x_test)
 
 print("Starting GD")
 s=time.time()
