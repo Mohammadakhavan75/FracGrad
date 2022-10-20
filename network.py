@@ -17,6 +17,15 @@ class Net:
         self.batch_size = batch_size
         self.batch_counter = 0
 
+        self.W_F = self.w_flatten.copy()
+        self.W_I = self.w.copy()
+
+    def reset_to_default(self):
+        self.w = self.W_I.copy()
+        self.w_flatten = self.W_F.copy()
+        self.step=0
+        self.batch_counter = 0
+
     def init_weight(self, x, layers):
         w = []
         tmp = np.random.normal(0, 1, (x.shape[1], layers[0]))
