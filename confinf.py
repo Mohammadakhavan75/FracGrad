@@ -60,7 +60,10 @@ for ep in range(epoch):
 d=time.time()
 model.save_model(name="model_GD")
 print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+valval=model.eval(w=model.w_flatten, x=x_test, y=y_test)
+print(valval)
+with open('acc.txt', 'a') as acctxt:
+    acctxt.write(str(valval))
 
 sns.lineplot(hist_int, label="int", linestyle='solid')
 plt.savefig("Int_Loss.png", dpi=500)
@@ -87,7 +90,10 @@ for ep in range(epoch):
 d=time.time()
 model.save_model(name="model_Frac")
 print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+valval=model.eval(w=model.w_flatten, x=x_test, y=y_test)
+print(valval)
+with open('acc.txt', 'a') as acctxt:
+    acctxt.write(str(valval))
 
 sns.lineplot(hist_int, label="int", linestyle='solid')
 sns.lineplot(hist_frac, label="frac", linestyle='dashed')
@@ -115,7 +121,10 @@ for ep in range(epoch):
 d=time.time()
 model.save_model(name="model_Frac_Multi")
 print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+valval=model.eval(w=model.w_flatten, x=x_test, y=y_test)
+print(valval)
+with open('acc.txt', 'a') as acctxt:
+    acctxt.write(str(valval))
 
 sns.lineplot(hist_int, label="int", linestyle='solid')
 sns.lineplot(hist_frac, label="frac", linestyle='dashed')
@@ -144,7 +153,10 @@ for ep in range(epoch):
 d=time.time()
 model.save_model(name="model_Frac_dist")
 print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+valval=model.eval(w=model.w_flatten, x=x_test, y=y_test)
+print(valval)
+with open('acc.txt', 'a') as acctxt:
+    acctxt.write(str(valval))
 
 with open('hist_dist.pkl', 'wb') as f:
     pickle.dump(hist_dist, f)
