@@ -38,10 +38,14 @@ pca = PCA(10)
 x_train = pca.fit_transform(x_train)
 x_test = pca.transform(x_test)
 
+
+model = Net(x_train, y_train, [10, 10], batch_size=64)
+
+
 print("Starting GD")
 s=time.time()
 epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
+
 hist_int = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
@@ -68,7 +72,7 @@ with open('hist_int.pkl', 'wb') as f:
 print("Starting Fractional")
 s=time.time()
 epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
+model.reset_to_default()
 hist_frac = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
@@ -96,7 +100,7 @@ with open('hist_frac.pkl', 'wb') as f:
 print("Starting Multi Fractional")
 s=time.time()
 epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
+model.reset_to_default()
 hist_multi = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
@@ -125,7 +129,7 @@ with open('hist_multi.pkl', 'wb') as f:
 print("Starting Distribute Fractional")
 s=time.time()
 epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
+model.reset_to_default()
 hist_dist = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
@@ -156,6 +160,13 @@ sns.lineplot(data=hist_int[:50], label="int", linestyle='solid')
 sns.lineplot(data=hist_frac[:50], label="frac", linestyle='dashed')
 sns.lineplot(data=hist_multi[:50], label="multi", linestyle='dotted')
 sns.lineplot(data=hist_dist[:50], label="dist", linestyle='dashdot')
+plt.savefig("Int_Frac_Multi_Dist_50.png", dpi=500)
+plt.close()
+
+sns.lineplot(data=hist_int[:100], label="int", linestyle='solid')
+sns.lineplot(data=hist_frac[:100], label="frac", linestyle='dashed')
+sns.lineplot(data=hist_multi[:100], label="multi", linestyle='dotted')
+sns.lineplot(data=hist_dist[:100], label="dist", linestyle='dashdot')
 plt.savefig("Int_Frac_Multi_Dist_50.png", dpi=500)
 plt.close()
 
