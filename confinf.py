@@ -47,12 +47,14 @@ s=time.time()
 epoch = 5
 
 hist_int = []
+acc_int = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
         opt.optimizer(model.categorical_cross_entropy, model.w_flatten, model,lr=0.03, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_int.append(temp_loss)
+        acc_int.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
         print(f"GD, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
@@ -72,17 +74,23 @@ plt.close()
 with open('hist_int.pkl', 'wb') as f:
     pickle.dump(hist_int, f)
 
+with open('acc_int.pkl', 'wb') as f:
+    pickle.dump(acc_int, f)
+
+
 print("Starting Fractional")
 s=time.time()
 epoch = 5
 model.reset_to_default()
 hist_frac = []
+acc_frac = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
         opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha=0.9, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_frac.append(temp_loss)
+        acc_frac.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
         print(f"Fractional, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
 
         model.batch_counter += model.batch_size
@@ -102,18 +110,22 @@ plt.close()
 
 with open('hist_frac.pkl', 'wb') as f:
     pickle.dump(hist_frac, f)
+with open('acc_frac.pkl', 'wb') as f:
+    pickle.dump(acc_frac, f)
 
 print("Starting Multi Fractional")
 s=time.time()
 epoch = 5
 model.reset_to_default()
 hist_multi = []
+acc_multi = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
         opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_multi.append(temp_loss)
+        acc_multi.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
         print(f"Multi, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
@@ -134,18 +146,22 @@ plt.close()
 
 with open('hist_multi.pkl', 'wb') as f:
     pickle.dump(hist_multi, f)
+with open('acc_multi.pkl', 'wb') as f:
+    pickle.dump(acc_multi, f)
 
 print("Starting Distribute Fractional")
 s=time.time()
 epoch = 5
 model.reset_to_default()
 hist_dist = []
+acc_dist = []
 for ep in range(epoch):
     print("EPOCH: ", ep)
     for b in range(int(x_test.shape[0]/model.batch_size)):
         opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_dist.append(temp_loss)
+        acc_dist.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
         print(f"Distribute, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
@@ -160,6 +176,8 @@ with open('acc.txt', 'a') as acctxt:
 
 with open('hist_dist.pkl', 'wb') as f:
     pickle.dump(hist_dist, f)
+with open('acc_dist.pkl', 'wb') as f:
+    pickle.dump(acc_dist, f)
 
 sns.lineplot(data=hist_int, label="int", linestyle='solid')
 sns.lineplot(data=hist_frac, label="frac", linestyle='dashed')
@@ -182,3 +200,26 @@ sns.lineplot(data=hist_dist[:100], label="dist", linestyle='dashdot').set(xlabel
 plt.savefig("Int_Frac_Multi_Dist_100.png", dpi=500)
 plt.close()
 
+##########
+
+sns.lineplot(data=acc_int, label="int", linestyle='solid')
+sns.lineplot(data=acc_frac, label="frac", linestyle='dashed')
+sns.lineplot(data=acc_multi, label="multi", linestyle='dotted')
+sns.lineplot(data=acc_dist, label="dist", linestyle='dashdot').set(xlabel="Iteration", ylabel="Accuracy")
+plt.savefig("acc_Full.png", dpi=500)
+plt.close()
+
+sns.lineplot(data=acc_int[:50], label="int", linestyle='solid')
+sns.lineplot(data=acc_frac[:50], label="frac", linestyle='dashed')
+sns.lineplot(data=acc_multi[:50], label="multi", linestyle='dotted')
+sns.lineplot(data=acc_dist[:50], label="dist", linestyle='dashdot').set(xlabel="Iteration", ylabel="Accuracy")
+plt.savefig("acc_50.png", dpi=500)
+plt.close()
+
+
+sns.lineplot(data=acc_int[:100], label="int", linestyle='solid')
+sns.lineplot(data=acc_frac[:100], label="frac", linestyle='dashed')
+sns.lineplot(data=acc_multi[:100], label="multi", linestyle='dotted')
+sns.lineplot(data=acc_dist[:100], label="dist", linestyle='dashdot').set(xlabel="Iteration", ylabel="Accuracy")
+plt.savefig("acc_100.png", dpi=500)
+plt.close()
