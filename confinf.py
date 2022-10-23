@@ -1,6 +1,6 @@
 from network import Net
 from optimizers import Optimizer
-from tensorflow.keras.datasets import mnist
+from tensorflow.keras.datasets import mnist, cifar10
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
@@ -15,6 +15,16 @@ def load_mnist():
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
     x_train = np.reshape(x_train, [-1, 28*28])
     x_test = np.reshape(x_test, [-1, 28*28])
+    y_train = tf.keras.utils.to_categorical(y_train, 10)
+    y_test = tf.keras.utils.to_categorical(y_test, 10)
+    x_train = x_train/np.max(x_train)
+    x_test = x_test/np.max(x_test)
+    return x_train, y_train, x_test, y_test
+
+def load_cifar10():
+    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+    x_train = np.reshape(x_train, [-1, 32*32])
+    x_test = np.reshape(x_test, [-1, 32*32])
     y_train = tf.keras.utils.to_categorical(y_train, 10)
     y_test = tf.keras.utils.to_categorical(y_test, 10)
     x_train = x_train/np.max(x_train)
