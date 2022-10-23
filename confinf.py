@@ -23,8 +23,8 @@ def load_mnist():
 
 def load_cifar10():
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-    x_train = np.reshape(x_train, [-1, 32*32])
-    x_test = np.reshape(x_test, [-1, 32*32])
+    x_train = np.reshape(x_train, [-1, 32*32*3])
+    x_test = np.reshape(x_test, [-1, 32*32*3])
     y_train = tf.keras.utils.to_categorical(y_train, 10)
     y_test = tf.keras.utils.to_categorical(y_test, 10)
     x_train = x_train/np.max(x_train)
