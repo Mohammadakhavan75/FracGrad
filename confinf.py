@@ -64,7 +64,7 @@ for ep in range(epoch):
         opt.optimizer(model.categorical_cross_entropy, model.w_flatten, model,lr=0.03, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_int.append(temp_loss)
-        acc_int.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+        acc_int.append(model.eval(w=model.w_flatten, x=x_test, y=y_test)[1])
         print(f"GD, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
@@ -100,7 +100,7 @@ for ep in range(epoch):
         opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha=0.9, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_frac.append(temp_loss)
-        acc_frac.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+        acc_frac.append(model.eval(w=model.w_flatten, x=x_test, y=y_test)[1])
         print(f"Fractional, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
 
         model.batch_counter += model.batch_size
@@ -135,7 +135,7 @@ for ep in range(epoch):
         opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_multi.append(temp_loss)
-        acc_multi.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+        acc_multi.append(model.eval(w=model.w_flatten, x=x_test, y=y_test)[1])
         print(f"Multi, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
@@ -171,7 +171,7 @@ for ep in range(epoch):
         opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
         temp_loss = model.categorical_cross_entropy(model.w_flatten)
         hist_dist.append(temp_loss)
-        acc_dist.append(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+        acc_dist.append(model.eval(w=model.w_flatten, x=x_test, y=y_test)[1])
         print(f"Distribute, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
         
         model.batch_counter += model.batch_size
