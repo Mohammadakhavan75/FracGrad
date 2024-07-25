@@ -53,6 +53,64 @@ opt = Optimizer()
 #         model.batch_counter += model.batch_size
 
 
+import argparse
+from grads import grads
+from operators import operators
+from optimizers import SGD, Adagrad, RMSProp, Adam
+grad_funcs = ['grad', 'Ggamma', 'Glearning_rate', 'Reimann_Liouville', 'Caputo', 'Reimann_Liouville_fromG', 'Caputo_fromG']
+opers = ['integer', 'fractional', 'multi_fractional', 'distributed_fractional']
+optims = ['sgd', 'adagrad', 'rmsprop', 'adam']
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--grad', choices=grad_funcs)
+parser.add_argument('--operator', choices=opers)
+parser.add_argument('--optimizer', choices=optims)
+args = parser.parse_args()
+
+if args.grad == 'grad':
+    G = grads.grad
+elif args.grad == 'Ggamma':
+    G = grads.Ggamma
+elif args.grad == 'Glearning_rate':
+    G = grads.Glearning_rate
+elif args.grad == 'Reimann_Liouville':
+    G = grads.Reimann_Liouville
+elif args.grad == 'Caputo':
+    G = grads.Caputo
+elif args.grad == 'Reimann_Liouville_fromG':
+    G = grads.Reimann_Liouville_fromG
+elif args.grad == 'Caputo_fromG':
+    G = grads.Caputo_fromG
+else:
+    raise ValueError(f"Unknown gradient function: {args.grad}")
+
+
+if args.operator == "integer":
+    OPT = operators.integer(G)
+elif args.operator == "fractional":
+    OPT = operators.fractional(G)
+elif args.operator == "multi_fractional":
+    OPT = operators.multi_fractional(G)
+elif args.operator == "distributed_fractional":
+    OPT = operators.distributed_fractional(G)
+else:
+    raise ValueError(f"Unknown operator: {args.operator}")
+
+if args.optimizer == "sgd":
+    OPTIM = SGD(OPT)
+elif args.optimizer == "adagrad":
+    OPTIM = Adagrad(OPT)
+elif args.optimizer == "rmsprop":
+    OPTIM = RMSProp(OPT)
+elif args.optimizer == "adam":
+    OPTIM = Adam(OPT)
+else:
+    raise ValueError(f"Unknown optimizer: {args.optimizer}")
+
+
+
+
+
 x_train, y_train, x_test, y_test= load_mnist()
 pca = PCA(10)
 x_train = pca.fit_transform(x_train)
