@@ -86,12 +86,16 @@ else:
 
 
 if args.operator == "integer":
-    OPT = operators.integer(G)
+    OPT = operators(G)
+    OPT = OPT.integer
 elif args.operator == "fractional":
+    OPT = operators(G)
     OPT = operators.fractional(G)
 elif args.operator == "multi_fractional":
+    OPT = operators(G)
     OPT = operators.multi_fractional(G)
 elif args.operator == "distributed_fractional":
+    OPT = operators(G)
     OPT = operators.distributed_fractional(G)
 else:
     raise ValueError(f"Unknown operator: {args.operator}")
