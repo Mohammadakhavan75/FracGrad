@@ -36,33 +36,35 @@ class FiniteDifferenceGradient(torch.autograd.Function):
 
     @staticmethod
     def backward(self, ctx, grad_output):
+
         input, = ctx.saved_tensors
         grad_input = torch.zeros_like(input)
-
-        # Compute the numerical gradient
-        with torch.no_grad():
-            for i in range(input.size(0)):
-                original_value = input[i].item()
+        grad_input[0] = self.operator(grad_input[0].item())
+        # # Compute the numerical gradient
+        # with torch.no_grad():
+        #     for i in range(input.size(0)):
+        #         original_value = input[i].item()
                 
-                grad_input[i] = self.operator(original_value)
-                # # Evaluate loss at w + epsilon
-                # input[i] = original_value + ctx.epsilon
-                # loss1 = ctx.loss_fn(ctx.model(input), ctx.target)
+        #         grad_input[i] = self.operator(original_value)
+        #         # # Evaluate loss at w + epsilon
+        #         # input[i] = original_value + ctx.epsilon
+        #         # loss1 = ctx.loss_fn(ctx.model(input), ctx.target)
 
-                # # Evaluate loss at w - epsilon
-                # input[i] = original_value - ctx.epsilon
-                # loss2 = ctx.loss_fn(ctx.model(input), ctx.target)
+        #         # # Evaluate loss at w - epsilon
+        #         # input[i] = original_value - ctx.epsilon
+        #         # loss2 = ctx.loss_fn(ctx.model(input), ctx.target)
 
-                # # Compute numerical gradient
-                # grad_input[i] = (loss1 - loss2) / (2 * ctx.epsilon) # Operator!
+        #         # # Compute numerical gradient
+        #         # grad_input[i] = (loss1 - loss2) / (2 * ctx.epsilon) # Operator!
                 
-                # Restore the original value
-                input[i] = original_value
+        #         # Restore the original value
+        #         input[i] = original_value
 
         return grad_input * grad_output
 
     def jvp(ctx, grad_inputs):
         # Grad_function
+        pass
 
 
 
