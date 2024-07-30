@@ -44,16 +44,21 @@ class SGD(Optimizer):
 
         for group in self.param_groups:
             operator = group['operator']
-            for p in group['params']:
+            for p, pm_1, pm_2 in zip(group['params'], group['params_1'], group['params_2']):
                 if p.grad is None:
                     continue
                 grad_values = grad_generator.apply(p.grad.data)  # Apply custom gradient function
+                pm_2.data.fill_(pm_1.data)
                 p.data.add_(grad_values, alpha=-group['lr'])
+                if pm_1.data == p.data:
+                    continue
+                else:
+                    pm_1.data.fill_(p.data)
 
         return loss
 
 
-class SimpleModel(nn.Module):
+class SimpleModel(torch.nn.Module):
     def __init__(self):
         super(SimpleModel, self).__init__()
         self.fc1 = torch.nn.Linear(784, 128)
