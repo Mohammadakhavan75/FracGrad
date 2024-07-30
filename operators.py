@@ -27,7 +27,7 @@ class operators():
         d_alpha = (self.alpha2 - self.alpha1) / self.N
         integral = lambda alpha: ((2 * (alpha - self.alpha1)) / (gamma(2 - alpha) * (self.alpha2 - self.alpha1) ** 2)) * self.grad_func(history[idx]) * np.abs(history[idx+1] - history[idx]) ** (1 - alpha)
         
-        delta = 0.5*integral(self.alpha1)
+        delta = 0.5 * integral(self.alpha1)
         for n in range(1, self.N):
             delta = delta + integral(self.alpha1 + n*d_alpha)
         
