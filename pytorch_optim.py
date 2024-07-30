@@ -1,144 +1,140 @@
+from torch.optim.optimizer import Optimizer
+from operators import operators
+import torch.nn.functional as F
+import numpy as np
+import random
 import torch
-from torch.optim.optimizer import Optimizer, required
-
-
-# class CustomGradientFunction(torch.autograd.Function):
-#     @staticmethod
-#     def forward(ctx, input):
-#         ctx.save_for_backward(input)
-#         return input
-
-#     @staticmethod
-#     def backward(ctx, grad_output):
-#         input, = ctx.saved_tensors
-#         grad_input = grad_output.clone()
-#         grad_input[input < 0] = 0
-#         gg = torch.ones_like(grad_input) * 10
-#         # return grad_input
-#         return gg
-from grads import grads
-from operator import operators
-G = grads.grad
-OPT = operators
-
-class FiniteDifferenceGradient(torch.autograd.Function):
-    def __init__(self, operator):
-        self.operator = operator
+import itertools
+import copy
+class grad_generator(torch.autograd.Function):
+    # def __init__(self, operator, pm_1=None, lr=None):
+        # self.operator = operator
+        # self.pm_1 = pm_1
+        # self.lr = lr
     
     @staticmethod
-    def forward(ctx, input, model, loss_fn, target, epsilon=1e-4):
-        ctx.model = model
-        ctx.loss_fn = loss_fn
-        ctx.target = target
-        ctx.epsilon = epsilon
+    def forward(ctx, input, operator):
         ctx.save_for_backward(input)
+        ctx.operator = operator
+        
         return input
 
     @staticmethod
-    def backward(self, ctx, grad_output):
-
+    def backward(ctx, grad_output):
         input, = ctx.saved_tensors
         grad_input = torch.zeros_like(input)
-        grad_input[0] = self.operator(grad_input[0].item())
-        # # Compute the numerical gradient
-        # with torch.no_grad():
-        #     for i in range(input.size(0)):
-        #         original_value = input[i].item()
-                
-        #         grad_input[i] = self.operator(original_value)
-        #         # # Evaluate loss at w + epsilon
-        #         # input[i] = original_value + ctx.epsilon
-        #         # loss1 = ctx.loss_fn(ctx.model(input), ctx.target)
-
-        #         # # Evaluate loss at w - epsilon
-        #         # input[i] = original_value - ctx.epsilon
-        #         # loss2 = ctx.loss_fn(ctx.model(input), ctx.target)
-
-        #         # # Compute numerical gradient
-        #         # grad_input[i] = (loss1 - loss2) / (2 * ctx.epsilon) # Operator!
-                
-        #         # Restore the original value
-        #         input[i] = original_value
+        # Compute the numerical gradient
+        with torch.no_grad():
+            for i in range(input.size(0)):
+                original_value = input[i].item()
+                grad_input[i] = ctx.operator(original_value)
+                # Restore the original value
+                input[i] = original_value
 
         return grad_input * grad_output
 
-    def jvp(ctx, grad_inputs):
-        # Grad_function
-        pass
+
+def deep_copy_generator(gen):
+    for item in gen:
+        yield copy.deepcopy(item)
+
+# Use itertools.tee on the new generator
+
+def my_generator(params):
+    for p in list(params):
+        yield copy.deepcopy(p)
 
 
+class SGD(Optimizer):
+    def __init__(self, params, operator, lr=0.03):
+        # Create a generator
+        params_ = my_generator(params)
 
+        # To "copy" the generator, simply create a new one
+        self.params_1 = my_generator(params)
+        
 
-
-
-
-import torch
-from torch.optim.optimizer import Optimizer, required
-
-class CustomSGD(Optimizer):
-    def __init__(self, params, model, loss_fn, target, lr=required, momentum=0, dampening=0,
-                 weight_decay=0, nesterov=False):
-        if lr is not required and lr < 0.0:
-            raise ValueError("Invalid learning rate: {}".format(lr))
-        if momentum < 0.0:
-            raise ValueError("Invalid momentum value: {}".format(momentum))
-        if weight_decay < 0.0:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
-
-        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
-                        weight_decay=weight_decay, nesterov=nesterov)
-        if nesterov and (momentum <= 0 or dampening != 0):
-            raise ValueError("Nesterov momentum requires a momentum and zero dampening")
-        super(CustomSGD, self).__init__(params, defaults)
-        self.model = model
-        self.loss_fn = loss_fn
-        self.target = target
+        defaults = dict(lr=lr, operator=operator)
+        super(SGD, self).__init__(params_, defaults)
 
     def step(self, closure=None):
         loss = None
         if closure is not None:
-            loss = closure()
+            with torch.enable_grad():
+                loss = closure()
 
         for group in self.param_groups:
-            weight_decay = group['weight_decay']
-            momentum = group['momentum']
-            dampening = group['dampening']
-            nesterov = group['nesterov']
-
-            for p in group['params']:
+            print("#1")
+            for p, t in zip(group['params'], np.arange(10)):
+            # for p in group['params']:
                 if p.grad is None:
                     continue
-                d_p = FiniteDifferenceGradient.apply(p.grad.data, self.model, self.loss_fn, self.target)  # Apply custom gradient function
-                if weight_decay != 0:
-                    d_p.add_(p.data, alpha=weight_decay)
-                if momentum != 0:
-                    param_state = self.state[p]
-                    if 'momentum_buffer' not in param_state:
-                        buf = param_state['momentum_buffer'] = torch.clone(d_p).detach()
-                    else:
-                        buf = param_state['momentum_buffer']
-                        buf.mul_(momentum).add_(d_p, alpha=1 - dampening)
-                    if nesterov:
-                        d_p = d_p.add(buf, alpha=momentum)
-                    else:
-                        d_p = buf
-                p.data.add_(d_p, alpha=-group['lr'])
-
+                print("#3")
+                grad_values = grad_generator.apply(p, group['operator'])
+                p.data.add_(grad_values, alpha=-group['lr'])
+                # print(p.data[0])#, pm_1[0][0])
+                
+                
         return loss
 
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-# from pytorch_optim import CustomSGD
-import numpy as np
-import random
-class SimpleModel(nn.Module):
+
+
+class CustomSGD(Optimizer):
+    def __init__(self, params, operator, lr=0.03, alpha1=0.9, alpha2=1.1, N=50, history_size=2):
+        defaults = dict(lr=lr)
+        super(CustomSGD, self).__init__(params, defaults)
+        self.operator = operators(self.grad_func, alpha1, alpha2, N)
+        self.operator_name = operator
+        self.history = {}
+        self.history_size = history_size
+
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            lr = group['lr']
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+
+                param_id = id(p)
+                if param_id not in self.history:
+                    self.history[param_id] = [p.data.clone()]
+                else:
+                    if len(self.history[param_id]) >= self.history_size:
+                        self.history[param_id].pop(0)
+                    self.history[param_id].append(p.data.clone())
+
+                if len(self.history[param_id]) >= self.history_size:
+                    history = self.history[param_id]
+                    idx = -2
+                    if self.operator_name == "integer":
+                        update = self.operator.integer(history, idx, lr)
+                    elif self.operator_name == "fractional":
+                        update = self.operator.fractional(history, idx, lr)
+                    elif self.operator_name == "multi_fractional":
+                        update = self.operator.multi_fractional(history, idx, lr)
+                    elif self.operator_name == "distributed_fractional":
+                        update = self.operator.distributed_fractional(history, idx, lr)
+                    else:
+                        raise ValueError(f"Unknown operator: {self.operator_name}")
+
+                    p.data.add_(-lr, torch.tensor(update, dtype=p.data.dtype, device=p.data.device))
+
+        return loss
+
+
+class SimpleModel(torch.nn.Module):
     def __init__(self):
         super(SimpleModel, self).__init__()
-        self.fc1 = nn.Linear(784, 128)
-        self.fc2 = nn.Linear(128, 10)
+        self.fc1 = torch.nn.Linear(784, 128)
+        self.fc2 = torch.nn.Linear(128, 10)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -148,7 +144,7 @@ class SimpleModel(nn.Module):
 model = SimpleModel()
 
 # Example data
-num_epochs = 10
+num_epochs = 2
 batch_size = 64
 input_size = 784
 num_classes = 10
@@ -159,11 +155,9 @@ random.seed(1)
 data = torch.randn(batch_size, input_size)
 target = torch.randint(0, num_classes, (batch_size,))
 
-criterion = nn.CrossEntropyLoss()
-optimizer = CustomSGD(model.parameters(), model, criterion, target, lr=0.01, momentum=0.9)
-
-# Generate random data for example purposes
-
+criterion = torch.nn.CrossEntropyLoss()
+operator_instance = operators(grad_func=torch.autograd.grad)
+optimizer = SGD(model.parameters(), lr=0.01, operator=operator_instance.integer)  # Use the integer method for example
 
 # Training loop
 for epoch in range(num_epochs):
@@ -181,3 +175,9 @@ for epoch in range(num_epochs):
     optimizer.step()
 
     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+
+
+
+
+
+
