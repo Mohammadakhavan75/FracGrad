@@ -4,18 +4,16 @@ import torch.nn.functional as F
 import numpy as np
 import random
 import torch
-import itertools
 import copy
+
+
 class grad_generator(torch.autograd.Function):
-    # def __init__(self, operator, pm_1=None, lr=None):
-        # self.operator = operator
-        # self.pm_1 = pm_1
-        # self.lr = lr
     
     @staticmethod
-    def forward(ctx, input, operator):
+    def forward(ctx, input, operator, old_params):
         ctx.save_for_backward(input)
         ctx.operator = operator
+        ctx.old_params = old_params
         
         return input
 
@@ -27,7 +25,7 @@ class grad_generator(torch.autograd.Function):
         with torch.no_grad():
             for i in range(input.size(0)):
                 original_value = input[i].item()
-                grad_input[i] = ctx.operator(original_value)
+                grad_input[i] = ctx.operator(original_value, ctx.old_params.item())
                 # Restore the original value
                 input[i] = original_value
 
@@ -38,24 +36,12 @@ def deep_copy_generator(gen):
     for item in gen:
         yield copy.deepcopy(item)
 
-# Use itertools.tee on the new generator
-
-def my_generator(params):
-    for p in list(params):
-        yield copy.deepcopy(p)
-
 
 class SGD(Optimizer):
     def __init__(self, params, operator, lr=0.03):
-        # Create a generator
-        params_ = my_generator(params)
 
-        # To "copy" the generator, simply create a new one
-        self.params_1 = my_generator(params)
-        
-
-        defaults = dict(lr=lr, operator=operator)
-        super(SGD, self).__init__(params_, defaults)
+        defaults = dict(lr=lr, operator=operator, old_params={})
+        super(SGD, self).__init__(params, defaults)
 
     def step(self, closure=None):
         loss = None
@@ -64,31 +50,25 @@ class SGD(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            print("#1")
-            for p, t in zip(group['params'], np.arange(10)):
-            # for p in group['params']:
+            for l, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
-                print("#3")
-                grad_values = grad_generator.apply(p, group['operator'])
-                p.data.add_(grad_values, alpha=-group['lr'])
-                # print(p.data[0])#, pm_1[0][0])
                 
-                
+                if l not in group['old_params']:#FIRST_ITERATION
+                    group['old_params'][l] = p
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    p.data.add_(grad_values, alpha=-group['lr'])
+                else: #continue_of_the_iterations
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['old_params'][l] = p
+                    p.data.add_(grad_values, alpha=-group['lr'])
         return loss
 
 
-
-
-
-class CustomSGD(Optimizer):
-    def __init__(self, params, operator, lr=0.03, alpha1=0.9, alpha2=1.1, N=50, history_size=2):
-        defaults = dict(lr=lr)
-        super(CustomSGD, self).__init__(params, defaults)
-        self.operator = operators(self.grad_func, alpha1, alpha2, N)
-        self.operator_name = operator
-        self.history = {}
-        self.history_size = history_size
+class AdaGrad(Optimizer):
+    def __init__(self, params, operator, lr=0.03, eps=1e-10):
+        defaults = dict(lr=lr, operator=operator, eps=eps, sum_of_squared_grads={}, old_params={})
+        super(AdaGrad, self).__init__(params, defaults)
 
     def step(self, closure=None):
         loss = None
@@ -97,87 +77,144 @@ class CustomSGD(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            lr = group['lr']
             for p in group['params']:
                 if p.grad is None:
                     continue
-                grad = p.grad.data
-
-                param_id = id(p)
-                if param_id not in self.history:
-                    self.history[param_id] = [p.data.clone()]
+                
+        for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
+                
+                if l not in group['old_params']:
+                    group['old_params'][l] = p
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['sum_of_squared_grads'][l] = torch.pow(grad_values, 2)
+                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
+                    grad_values = grad_values * adjusted_lr
+                    p.data.add_(grad_values, alpha=-group['lr'])
                 else:
-                    if len(self.history[param_id]) >= self.history_size:
-                        self.history[param_id].pop(0)
-                    self.history[param_id].append(p.data.clone())
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['old_params'][l] = p
+                    group['sum_of_squared_grads'][l].add_(torch.pow(grad_values, 2))
+                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
+                    grad_values = grad_values * adjusted_lr
+                    p.data.add_(grad_values, alpha=-group['lr'])
+        return loss
+    
+import torch
+from torch.optim.optimizer import Optimizer
 
-                if len(self.history[param_id]) >= self.history_size:
-                    history = self.history[param_id]
-                    idx = -2
-                    if self.operator_name == "integer":
-                        update = self.operator.integer(history, idx, lr)
-                    elif self.operator_name == "fractional":
-                        update = self.operator.fractional(history, idx, lr)
-                    elif self.operator_name == "multi_fractional":
-                        update = self.operator.multi_fractional(history, idx, lr)
-                    elif self.operator_name == "distributed_fractional":
-                        update = self.operator.distributed_fractional(history, idx, lr)
-                    else:
-                        raise ValueError(f"Unknown operator: {self.operator_name}")
+class RMSProp(Optimizer):
+    def __init__(self, params, operator, lr=0.01, eps=1e-8, alpha=0.99):
+        defaults = dict(lr=lr, operator=operator, eps=eps, alpha=alpha, accumulated_grad={}, old_params={})
+        super(RMSProp, self).__init__(params, defaults)
 
-                    p.data.add_(-lr, torch.tensor(update, dtype=p.data.dtype, device=p.data.device))
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
+
+                if l not in group['old_params']:
+                    group['old_params'][l] = p
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) # group['accumulated_grad'][l] in initial iteration is 0
+                else:
+                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['old_params'][l] = p
+                    group['accumulated_grad'][l] = group['accumulated_grad'][l] + group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * (grad_values ** 2)
+
+                scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt() + group['eps'])
+                p.data.add_(scaled_grad, alpha=-group['lr'])
 
         return loss
 
 
-class SimpleModel(torch.nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.fc1 = torch.nn.Linear(784, 128)
-        self.fc2 = torch.nn.Linear(128, 10)
+class Adam(Optimizer):
+    def __init__(self, params, operator, lr=0.001, eps=1e-8, betas=(0.9, 0.999)):
+        defaults = dict(lr=lr, operator=operator, eps=eps, betas=betas,
+                        moment1={}, moment2={}, t=0, old_params={})
+        super(Adam, self).__init__(params, defaults)
 
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
 
-model = SimpleModel()
+        for group in self.param_groups:
+            beta1, beta2 = group['betas']
+            group['t'] += 1
+            for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
 
-# Example data
-num_epochs = 2
-batch_size = 64
-input_size = 784
-num_classes = 10
-torch.manual_seed(1)
-np.random.seed(1)
-random.seed(1)
+                
+                if l not in group['old_params']:
+                    group['old_params'][l] = p
+                    group['moment1'][l] = torch.zeros_like(p.data)
+                    group['moment2'][l] = torch.zeros_like(p.data)
+             
+                group['old_params'][l] = p
+                grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
+                group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * (grad_values ** 2)
 
-data = torch.randn(batch_size, input_size)
-target = torch.randint(0, num_classes, (batch_size,))
+                m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
+                m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
 
-criterion = torch.nn.CrossEntropyLoss()
-operator_instance = operators(grad_func=torch.autograd.grad)
-optimizer = SGD(model.parameters(), lr=0.01, operator=operator_instance.integer)  # Use the integer method for example
+                scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
+                p.data.add_(scaled_grad, alpha=-group['lr'])
 
-# Training loop
-for epoch in range(num_epochs):
-    model.train()
-    optimizer.zero_grad()
+        return loss
 
-    # Forward pass
-    output = model(data)
-    loss = criterion(output, target)
+                
+# class SimpleModel(torch.nn.Module):
+#     def __init__(self):
+#         super(SimpleModel, self).__init__()
+#         self.fc1 = torch.nn.Linear(784, 128)
+#         self.fc2 = torch.nn.Linear(128, 10)
 
-    # Backward pass
-    loss.backward()
+#     def forward(self, x):
+#         x = F.relu(self.fc1(x))
+#         x = self.fc2(x)
+#         return x
 
-    # Step with custom gradient function
-    optimizer.step()
+# model = SimpleModel()
 
-    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+# # Example data
+# num_epochs = 5
+# batch_size = input_size = 784
+# num_classes = 10
+# torch.manual_seed(1)
+# np.random.seed(1)
+# random.seed(1)
 
+# data = torch.randn(batch_size, input_size)
+# target = torch.randint(0, num_classes, (batch_size,))
 
+# criterion = torch.nn.CrossEntropyLoss()
+# operator_instance = operators(grad_func=torch.autograd.grad)
+# optimizer = Adam(model.parameters(), lr=0.01, operator=operator_instance.multi_fractional)  # Use the integer method for example
 
+# # Training loop
+# for epoch in range(num_epochs):
+#     model.train()
+#     optimizer.zero_grad()
 
+#     # Forward pass
+#     output = model(data)
+#     loss = criterion(output, target)
 
+#     # Backward pass
+#     loss.backward()
 
+#     # Step with custom gradient function
+#     optimizer.step()
+
+#     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
