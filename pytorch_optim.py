@@ -8,37 +8,19 @@ import copy
 
 
 class grad_generator(torch.autograd.Function):
-    
     @staticmethod
-    def forward(ctx, input, operator, old_params):
+    def forward(ctx, input):
         ctx.save_for_backward(input)
-        ctx.operator = operator
-        ctx.old_params = old_params
-        
-        return input
+        return input 
 
     @staticmethod
     def backward(ctx, grad_output):
-        input, = ctx.saved_tensors
-        grad_input = torch.zeros_like(input)
-        # Compute the numerical gradient
-        with torch.no_grad():
-            for i in range(input.size(0)):
-                original_value = input[i].item()
-                grad_input[i] = ctx.operator(original_value, ctx.old_params.item())
-                # Restore the original value
-                input[i] = original_value
-
-        return grad_input * grad_output
-
-
-def deep_copy_generator(gen):
-    for item in gen:
-        yield copy.deepcopy(item)
-
+        # Add a constant to the gradient
+        # return grad_output * 1000
+        return grad_output
 
 class SGD(Optimizer):
-    def __init__(self, params, operator, lr=0.03):
+    def __init__(self, params, operator=None, lr=0.03):
 
         defaults = dict(lr=lr, operator=operator, old_params={})
         super(SGD, self).__init__(params, defaults)
@@ -54,14 +36,23 @@ class SGD(Optimizer):
                 if p.grad is None:
                     continue
                 
-                if l not in group['old_params']:#FIRST_ITERATION
-                    group['old_params'][l] = p
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
-                    p.data.add_(grad_values, alpha=-group['lr'])
-                else: #continue_of_the_iterations
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
-                    group['old_params'][l] = p
-                    p.data.add_(grad_values, alpha=-group['lr'])
+                if group['operator'] is None:
+                    p.data.add_(p.grad, alpha=-group['lr'])
+                
+                else:
+                    if l not in group['old_params']:#FIRST_ITERATION
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['old_params'][l].grad = p.grad.clone()
+                        grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                        p.data.add_(torch.tensor(grad_values), alpha=-group['lr'])
+                    else: #continue_of_the_iterations
+                        grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['old_params'][l].grad = p.grad.clone()
+                        print(p.data)
+                        p.data.add_(torch.tensor(grad_values), alpha=-group['lr'])
+                        print(p.data)
+                    
         return loss
 
 
