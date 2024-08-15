@@ -16,8 +16,9 @@ from models.resnet import ResNet18
 from tqdm import tqdm
 # Define model
 def init_model(args):
-    #model = Net(3072, 128, 10)
-    model = ResNet18(10)
+    model = Net(3072, 128, 10)
+    # model = ResNet18(10)
+    model = model.to(args.device)
     criterion = nn.CrossEntropyLoss()
     # criterion = nn.MSELoss()
     
@@ -122,7 +123,7 @@ def load_cifar10():
     return train_loader, val_loader, test_loader
 
 # Train the model
-def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5):
+def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
     # torch.set_printoptions(precision=20, sci_mode=False)
     BB=False
     for epoch in range(epochs):
@@ -131,7 +132,9 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5)
         batch_time=[]
         running_loss = 0.0
         for images, labels in tqdm(train_loader):
-            #images = images.view(-1, 32*32*3)
+            images = images.to(args.device)
+            labels = labels.to(args.device)
+            images = images.view(-1, 32*32*3)
             # labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             
             optimizer.zero_grad()
@@ -214,6 +217,7 @@ def main():
     parser.add_argument('--grad', default='grad', choices=grad_funcs)
     parser.add_argument('--operator', default='fractional', choices=opers)
     parser.add_argument('--optimizer', default='sgd', choices=optims)
+    parser.add_argument('--device', default='cpu')
     args = parser.parse_args()
 
     my_seed = 1
@@ -232,7 +236,7 @@ def main():
     # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
     # optimizer= psgd(model.parameters(),  lr=args.lr)
-    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5)
+    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5)
     # test_loss = evaluate_model(model, test_loader)
 
     # diaplying model train_loss
