@@ -1,25 +1,27 @@
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
 from torchvision.datasets import MNIST
+from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader, random_split
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import time
 from grads import grads
 from operators import operators
 from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
 
-
 # Define model
 def init_model(args):
-    model = Net(784, 128, 10)
+    model = Net(3072, 128, 10)
     criterion = nn.CrossEntropyLoss()
+    # criterion = nn.MSELoss()
     
     if args.grad == 'grad':
-        G = grads.grad
+        # G = grads.grad
+        G = torch.autograd.grad
     elif args.grad == 'Ggamma':
         G = grads.Ggamma
     elif args.grad == 'Glearning_rate':
@@ -37,16 +39,17 @@ def init_model(args):
 
     if args.operator == "integer":
         OPT = operators(G)
-        OPT = OPT.integer
+        # OPT = OPT.integer
+        OPT = None
     elif args.operator == "fractional":
         OPT = operators(G)
-        OPT = operators.fractional(G)
+        OPT = OPT.fractional
     elif args.operator == "multi_fractional":
         OPT = operators(G)
-        OPT = operators.multi_fractional(G)
+        OPT = OPT.multi_fractional
     elif args.operator == "distributed_fractional":
         OPT = operators(G)
-        OPT = operators.distributed_fractional(G)
+        OPT = OPT.distributed_fractional
     else:
         raise ValueError(f"Unknown operator: {args.operator}")
 
@@ -80,11 +83,31 @@ class Net(nn.Module):
         return out
 
 # Load and preprocess the MNIST dataset
-def load_mnist():
-    # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-    transform = transforms.Compose([transforms.ToTensor()])
-    train_dataset = MNIST(root='./data', train=True, transform=transform, download=True)
-    test_dataset = MNIST(root='./data', train=False, transform=transform, download=True)
+# def load_mnist():
+#     # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+#     transform = transforms.Compose([transforms.ToTensor()])
+#     train_dataset = MNIST(root='./data', train=True, transform=transform, download=True)
+#     test_dataset = MNIST(root='./data', train=False, transform=transform, download=True)
+    
+#     train_size = int(0.8 * len(train_dataset))
+#     val_size = len(train_dataset) - train_size
+#     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+    
+#     train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
+#     val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=False)
+#     test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
+    
+#     return train_loader, val_loader, test_loader
+
+
+def load_cifar10():
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
+    
+    train_dataset = CIFAR10(root='./data', train=True, transform=transform, download=True)
+    test_dataset = CIFAR10(root='./data', train=False, transform=transform, download=True)
     
     train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
@@ -98,24 +121,33 @@ def load_mnist():
 
 # Train the model
 def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5):
+    # torch.set_printoptions(precision=20, sci_mode=False)
+    BB=False
     for epoch in range(epochs):
         model.train()
         train_loss = []
+        batch_time=[]
         running_loss = 0.0
         for images, labels in train_loader:
-            images = images.view(-1, 28*28)
+            images = images.view(-1, 32*32*3)
             # labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             
             optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, labels)
+            s = time.time()
             loss.backward()
             optimizer.step()
-            # print(loss.item())
-            running_loss += loss.item()
-        train_loss.append(running_loss/len(train_loader))
-        
-        print(f'Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}')
+            e = time.time()
+            batch_time.append(e-s)
+            train_loss.append(loss.item())
+        #     if torch.isnan(optimizer.param_groups[0]['params'][0][-1][-1]):
+        #         BB = True
+        #         print("BB maker :", optimizer.param_groups[0]['params'][0][-1])
+        #         break
+        # if BB:
+        #     break
+        print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
         
         # validate_model(model, val_loader, criterion)
     return train_loss
@@ -165,24 +197,31 @@ def display_loss(train_loss):
     plt.grid(True)
     plt.xticks(range(1, len(train_loss) + 1))  # To show all epochs on x-axis
     plt.show()
-    
+
+
+from torch.optim import SGD as psgd
     
 def main():
-    
+       
     grad_funcs = ['grad', 'Ggamma', 'Glearning_rate', 'Reimann_Liouville', 'Caputo', 'Reimann_Liouville_fromG', 'Caputo_fromG']
     opers = ['integer', 'fractional', 'multi_fractional', 'distributed_fractional']
     optims = ['sgd', 'adagrad', 'rmsprop', 'adam']
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lr', default=0.1)
+    parser.add_argument('--lr', default=0.1, type=float)
     parser.add_argument('--grad', default='grad', choices=grad_funcs)
-    parser.add_argument('--operator', default='integer', choices=opers)
+    parser.add_argument('--operator', default='fractional', choices=opers)
     parser.add_argument('--optimizer', default='sgd', choices=optims)
     args = parser.parse_args()
 
-    train_loader, val_loader, test_loader = load_mnist()
+    my_seed = 1
+    import random
+    torch.manual_seed(my_seed)
+    np.random.seed(my_seed)
+    random.seed(my_seed)
+    train_loader, val_loader, test_loader = load_cifar10()
     
-    input_size = 28 * 28
+    input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
     hidden_size = 256
     output_size = 10
     
@@ -190,13 +229,14 @@ def main():
     
     # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
+    # optimizer= psgd(model.parameters(),  lr=args.lr)
     train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5)
-    test_loss = evaluate_model(model, test_loader)
+    # test_loss = evaluate_model(model, test_loader)
 
     # diaplying model train_loss
     # display_loss(train_loss)
-    print(f'Total train loss is {train_loss}')
-    print(f'Total test loss is {test_loss}')
+    # print(f'Total train loss is {train_loss}')
+    # print(f'Total test loss is {test_loss}')
     # diaplying model val_loss
     # display_loss(val_loss)
     

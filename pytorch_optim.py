@@ -21,7 +21,7 @@ class grad_generator(torch.autograd.Function):
 
 class SGD(Optimizer):
     def __init__(self, params, operator=None, lr=0.03):
-
+        self.start_epoch = True
         defaults = dict(lr=lr, operator=operator, old_params={})
         super(SGD, self).__init__(params, defaults)
 
@@ -43,15 +43,12 @@ class SGD(Optimizer):
                     if l not in group['old_params']:#FIRST_ITERATION
                         group['old_params'][l] = p.data.clone().detach()
                         group['old_params'][l].grad = p.grad.clone()
-                        grad_values = group['operator'](p, group['old_params'][l], group['lr'])
-                        p.data.add_(torch.tensor(grad_values), alpha=-group['lr'])
+                        p.data.add_(p.grad, alpha=-group['lr'])
                     else: #continue_of_the_iterations
                         grad_values = group['operator'](p, group['old_params'][l], group['lr'])
                         group['old_params'][l] = p.data.clone().detach()
                         group['old_params'][l].grad = p.grad.clone()
-                        print(p.data)
-                        p.data.add_(torch.tensor(grad_values), alpha=-group['lr'])
-                        print(p.data)
+                        p.data.add_(grad_values, alpha=-group['lr'])
                     
         return loss
 
@@ -68,24 +65,25 @@ class AdaGrad(Optimizer):
                 loss = closure()
 
         for group in self.param_groups:
-            for p in group['params']:
+            for l, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
-                
-        for l, p in enumerate(group['params']):
-                if p.grad is None:
-                    continue
+        
+                if group['operator'] is None:
+                    p.data.add_(p.grad, alpha=-group['lr'])
                 
                 if l not in group['old_params']:
-                    group['old_params'][l] = p
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                    group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
                     group['sum_of_squared_grads'][l] = torch.pow(grad_values, 2)
                     adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
                     grad_values = grad_values * adjusted_lr
                     p.data.add_(grad_values, alpha=-group['lr'])
                 else:
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
-                    group['old_params'][l] = p
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
                     group['sum_of_squared_grads'][l].add_(torch.pow(grad_values, 2))
                     adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
                     grad_values = grad_values * adjusted_lr
@@ -112,12 +110,14 @@ class RMSProp(Optimizer):
                     continue
 
                 if l not in group['old_params']:
-                    group['old_params'][l] = p
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
-                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) # group['accumulated_grad'][l] in initial iteration is 0
+                    group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) 
                 else:
-                    grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
-                    group['old_params'][l] = p
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
                     group['accumulated_grad'][l] = group['accumulated_grad'][l] + group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * (grad_values ** 2)
 
                 scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt() + group['eps'])
@@ -147,12 +147,14 @@ class Adam(Optimizer):
 
                 
                 if l not in group['old_params']:
-                    group['old_params'][l] = p
+                    group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
                     group['moment1'][l] = torch.zeros_like(p.data)
                     group['moment2'][l] = torch.zeros_like(p.data)
              
-                group['old_params'][l] = p
-                grad_values = grad_generator.apply(p, group['operator'], group['old_params'][l])
+                group['old_params'][l] = p.data.clone().detach()
+                group['old_params'][l].grad = p.grad.clone()
+                grad_values = group['operator'](p, group['old_params'][l], group['lr'])
                 group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
                 group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * (grad_values ** 2)
 
@@ -191,7 +193,7 @@ class Adam(Optimizer):
 
 # criterion = torch.nn.CrossEntropyLoss()
 # operator_instance = operators(grad_func=torch.autograd.grad)
-# optimizer = Adam(model.parameters(), lr=0.01, operator=operator_instance.multi_fractional)  # Use the integer method for example
+# optimizer = SGD(model.parameters(), lr=0.01, operator=operator_instance.fractional)  # Use the integer method for example
 
 # # Training loop
 # for epoch in range(num_epochs):
@@ -199,7 +201,7 @@ class Adam(Optimizer):
 #     optimizer.zero_grad()
 
 #     # Forward pass
-#     output = model(data)
+#     output = model(data) 
 #     loss = criterion(output, target)
 
 #     # Backward pass
