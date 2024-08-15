@@ -17,18 +17,17 @@ import torch.nn as nn
 
 
 class BaseModel(nn.Module, metaclass=ABCMeta):
-    def __init__(self, num_classes=10):
+    def __init__(self, last_dim, num_classes=10):
         super(BaseModel, self).__init__()
+        self.linear = nn.Linear(last_dim, num_classes)
 
     @abstractmethod
     def penultimate(self, inputs, all_features=False):
         pass
 
-    def forward(self, inputs, penultimate=False):
+    def forward(self, inputs):
 
-        output, features_list = self.penultimate(inputs, penultimate)
-        output = None
-        if penultimate:
-            return output, features_list
-        else:
-            return output
+        features = self.penultimate(inputs)
+        output = self.linear(features)
+
+        return output
