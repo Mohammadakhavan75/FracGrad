@@ -1,8 +1,9 @@
 from scipy.special import gamma
+import torch
 import numpy as np
 
 class operators():
-    def __init__(self, grad_func, alpha1=0.9, alpha2=1.1, N=50) -> None:
+    def __init__(self, grad_func, alpha1=0.7, alpha2=0.9, N=50) -> None:
         self.grad_func = grad_func
         self.alpha1 = alpha1
         self.alpha2 = alpha2
@@ -26,6 +27,7 @@ class operators():
     def distributed_fractional(self, p, pm_1, lr):
         d_alpha = (self.alpha2 - self.alpha1) / self.N
         integral = lambda alpha: ((2 * (alpha - self.alpha1)) / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))) * (self.alpha2 - self.alpha1) ** 2)) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral = lambda alpha: (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
         delta = 0.5 * integral(self.alpha1)
         for n in range(1, self.N):
             delta += integral(self.alpha1 + n * d_alpha)
