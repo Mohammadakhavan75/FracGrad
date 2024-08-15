@@ -34,4 +34,31 @@ class operators():
         
         delta += 0.5 * integral(self.alpha2)
 
+        # delta = parallel_loop(self.N, self.alpha1, d_alpha)
+
         return delta
+
+# import torch.multiprocessing as mp
+
+# def worker(self, n, alpha1, d_alpha, queue):
+#     integral = lambda alpha: ((2 * (alpha - self.alpha1)) / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))) * (self.alpha2 - self.alpha1) ** 2)) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+#     result = integral(alpha1 + n * d_alpha)
+#     queue.put(result)
+
+# def parallel_loop(N, alpha1, d_alpha):
+#     delta = 0
+#     queue = mp.Queue()
+#     processes = []
+
+#     for n in range(1, N):
+#         p = mp.Process(target=worker, args=(n, alpha1, d_alpha, queue))
+#         p.start()
+#         processes.append(p)
+
+#     for p in processes:
+#         p.join()
+
+#     while not queue.empty():
+#         delta += queue.get()
+
+#     return delta
