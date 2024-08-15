@@ -13,20 +13,19 @@ class operators():
 
 
     def fractional(self, p, pm_1, lr):
-        return pm_1 - (lr / gamma(2 - self.alpha1)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - self.alpha1)
+        return (1 / torch.exp(torch.lgamma(torch.tensor(2 - self.alpha1)))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - self.alpha1)
     
 
     def multi_fractional(self, p, pm_1, lr):
-        t1 = (1/gamma(2 - self.alpha1)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - self.alpha1)
-        t2 = (1/gamma(2 - self.alpha2)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - self.alpha2)
-
+        t1 = (1 / torch.exp(torch.lgamma(torch.tensor(2 - self.alpha1)))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - self.alpha1)
+        t2 = (1 / torch.exp(torch.lgamma(torch.tensor(2 - self.alpha2)))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - self.alpha2)
+        
         return 0.5 * t1 + 0.5 * t2
 
 
     def distributed_fractional(self, p, pm_1, lr):
         d_alpha = (self.alpha2 - self.alpha1) / self.N
-        integral = lambda alpha: ((2 * (alpha - self.alpha1)) / (gamma(2 - alpha) * (self.alpha2 - self.alpha1) ** 2)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - alpha)
-        
+        integral = lambda alpha: ((2 * (alpha - self.alpha1)) / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))) * (self.alpha2 - self.alpha1) ** 2)) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
         delta = 0.5 * integral(self.alpha1)
         for n in range(1, self.N):
             delta += integral(self.alpha1 + n * d_alpha)
