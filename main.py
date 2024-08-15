@@ -12,10 +12,12 @@ import time
 from grads import grads
 from operators import operators
 from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
-
+from models.resnet import ResNet18
+from tqdm import tqdm
 # Define model
 def init_model(args):
-    model = Net(3072, 128, 10)
+    #model = Net(3072, 128, 10)
+    model = ResNet18(10)
     criterion = nn.CrossEntropyLoss()
     # criterion = nn.MSELoss()
     
@@ -128,8 +130,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, epochs=5)
         train_loss = []
         batch_time=[]
         running_loss = 0.0
-        for images, labels in train_loader:
-            images = images.view(-1, 32*32*3)
+        for images, labels in tqdm(train_loader):
+            #images = images.view(-1, 32*32*3)
             # labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             
             optimizer.zero_grad()
