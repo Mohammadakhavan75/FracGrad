@@ -14,7 +14,7 @@ class operators():
 
     def fractional(self, p, pm_1, lr):
         return pm_1 - (lr / gamma(2 - self.alpha1)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - self.alpha1)
-
+    
 
     def multi_fractional(self, p, pm_1, lr):
         t1 = (1/gamma(2 - self.alpha1)) * self.grad_func(p) * np.abs(pm_1 - p) ** (1 - self.alpha1)
