@@ -126,6 +126,7 @@ def load_cifar10():
 def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
     # torch.set_printoptions(precision=20, sci_mode=False)
     BB=False
+    ii=0
     for epoch in range(epochs):
         model.train()
         train_loss = []
@@ -141,11 +142,14 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
             outputs = model(images)
             loss = criterion(outputs, labels)
             s = time.time()
-            loss.backward()
+            loss.backward(create_graph=True)
             optimizer.step()
             e = time.time()
             batch_time.append(e-s)
             train_loss.append(loss.item())
+            if ii > 2:
+                exit()
+            ii += 1
         #     if torch.isnan(optimizer.param_groups[0]['params'][0][-1][-1]):
         #         BB = True
         #         print("BB maker :", optimizer.param_groups[0]['params'][0][-1])
@@ -215,9 +219,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr', default=0.1, type=float)
     parser.add_argument('--grad', default='grad', choices=grad_funcs)
-    parser.add_argument('--operator', default='fractional', choices=opers)
+    parser.add_argument('--operator', default='multi_fractional', choices=opers)
     parser.add_argument('--optimizer', default='sgd', choices=optims)
-    parser.add_argument('--device', default='cpu')
+    parser.add_argument('--device', default='cuda')
     args = parser.parse_args()
 
     my_seed = 1
@@ -249,257 +253,3 @@ def main():
     
     
 main()
-
-
-# pca = PCA(10)
-# x_train = pca.fit_transform(x_train)
-# x_test = pca.transform(x_test)
-
-# print("Starting GD")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_int = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.optimizer(model.categorical_cross_entropy, model.w_flatten, model,lr=0.03, max_iter=10)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_int.append(temp_loss)
-#         print(f"GD, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_GD")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# sns.lineplot(hist_int, label="int")
-# plt.savefig("Int_Loss.png", dpi=500)
-# plt.close()
-
-# with open('hist_int.pkl', 'wb') as f:
-#     pickle.dump(hist_int, f)
-
-# print("Starting Fractional")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_frac = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha=0.9, max_iter=10)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_frac.append(temp_loss)
-#         print(f"Fractional, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Frac")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# sns.lineplot(hist_int, label="int")
-# sns.lineplot(hist_frac, label="frac")
-# plt.savefig("Int_Frac.png", dpi=500)
-# plt.close()
-
-# with open('hist_frac.pkl', 'wb') as f:
-#     pickle.dump(hist_frac, f)
-
-# print("Starting Multi Fractional")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_multi = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_multi.append(temp_loss)
-#         print(f"Multi, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Frac_Multi")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# sns.lineplot(hist_int, label="int")
-# sns.lineplot(hist_frac, label="frac")
-# sns.lineplot(hist_multi, label="multi")
-# plt.savefig("Int_Frac_Multi.png", dpi=500)
-# plt.close()
-
-# with open('hist_multi.pkl', 'wb') as f:
-#     pickle.dump(hist_multi, f)
-
-# print("Starting Distribute Fractional")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_dist = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_dist.append(temp_loss)
-#         print(f"Distribute, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Frac_dist")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# with open('hist_dist.pkl', 'wb') as f:
-#     pickle.dump(hist_dist, f)
-
-# sns.lineplot(data=hist_int, label="int")
-# sns.lineplot(data=hist_frac, label="frac")
-# sns.lineplot(data=hist_multi, label="multi")
-# sns.lineplot(data=hist_dist, label="dist")
-# plt.savefig("Int_Frac_Multi_Dist.png", dpi=500)
-# plt.close()
-
-# ##########################################
-
-# print("Reimann_Liouville")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_RL = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Reimann_Liouville)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_RL.append(temp_loss)
-#         print(f"Reimann_Liouville, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Reimann_Liouville")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# with open('hist_Reimann_Liouville.pkl', 'wb') as f:
-#     pickle.dump(hist_RL, f)
-
-# sns.lineplot(data=hist_int, label="int")
-# sns.lineplot(data=hist_frac, label="frac")
-# sns.lineplot(data=hist_multi, label="multi")
-# sns.lineplot(data=hist_dist, label="dist")
-# sns.lineplot(data=hist_RL, label="RL")
-# plt.savefig("Int_Frac_Multi_Dist_RL.png", dpi=500)
-# plt.close()
-
-# print("Caputo")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_Caputo = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Caputo)
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_Caputo.append(temp_loss)
-#         print(f"Caputo, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Caputo")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# with open('hist_Caputo', 'wb') as f:
-#     pickle.dump(hist_Caputo, f)
-
-# sns.lineplot(data=hist_int, label="int")
-# sns.lineplot(data=hist_frac, label="frac")
-# sns.lineplot(data=hist_multi, label="multi")
-# sns.lineplot(data=hist_dist, label="dist")
-# sns.lineplot(data=hist_RL, label="RL")
-# sns.lineplot(data=hist_Caputo, label="Cap")
-# plt.savefig("Int_Frac_Multi_Dist_RL_Cap.png", dpi=500)
-# plt.close()
-
-
-# print("Reimann_Liouville_GLR")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_RL_GLR = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Reimann_Liouville, lr=opt.Glearning_rate(model.w_flatten))
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_RL_GLR.append(temp_loss)
-#         print(f"Reimann_Liouville_GLR, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Reimann_Liouville_GLR")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# with open('hist_Reimann_Liouville_GLR.pkl', 'wb') as f:
-#     pickle.dump(hist_RL_GLR, f)
-
-# sns.lineplot(data=hist_int, label="int")
-# sns.lineplot(data=hist_frac, label="frac")
-# sns.lineplot(data=hist_multi, label="multi")
-# sns.lineplot(data=hist_dist, label="dist")
-# sns.lineplot(data=hist_RL, label="RL")
-# sns.lineplot(data=hist_Caputo, label="Cap")
-# sns.lineplot(data=hist_Caputo, label="RL_GLR")
-# plt.savefig("Int_Frac_Multi_Dist_RL_Cap_RLGLR.png", dpi=500)
-# plt.close()
-
-
-# print("Caputo_GLR")
-# s=time.time()
-# epoch = 5
-# model = Net(x_train, y_train, [10, 10], batch_size=64)
-# hist_Caputo_GLR = []
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Caputo, lr=opt.Glearning_rate(model.w_flatten))
-#         temp_loss = model.categorical_cross_entropy(model.w_flatten)
-#         hist_Caputo_GLR.append(temp_loss)
-#         print(f"Caputo_GLR, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-#         model.batch_counter += model.batch_size
-
-# d=time.time()
-# model.save_model(name="model_Caputo_GLR")
-# print(f"time is: {d-s}")
-# print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-# with open('hist_Caputo_GLR.pkl', 'wb') as f:
-#     pickle.dump(hist_Caputo_GLR, f)
-
-
-# sns.lineplot(data=hist_int, label="int")
-# sns.lineplot(data=hist_frac, label="frac")
-# sns.lineplot(data=hist_multi, label="multi")
-# sns.lineplot(data=hist_dist, label="dist")
-# sns.lineplot(data=hist_RL, label="RL")
-# sns.lineplot(data=hist_Caputo, label="Cap")
-# sns.lineplot(data=hist_Caputo, label="RL_GLR")
-# sns.lineplot(data=hist_Caputo, label="RL_GLR")
-# plt.savefig("Int_Frac_Multi_Dist_RL_Cap_RLGLR_CapGLR.png", dpi=500)
-# plt.close()

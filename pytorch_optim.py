@@ -40,14 +40,15 @@ class SGD(Optimizer):
                     p.data.add_(p.grad, alpha=-group['lr'])
                 
                 else:
-                    if l not in group['old_params']:#FIRST_ITERATION
+                    if l not in group['old_params']:# FIRST_ITERATION
                         group['old_params'][l] = p.data.clone().detach()
-                        group['old_params'][l].grad = p.grad.clone()
+                        # group['old_params'][l].grad = p.grad.clone()
                         p.data.add_(p.grad, alpha=-group['lr'])
-                    else: #continue_of_the_iterations
+                    else: # continue_of_the_iterations
                         grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                        # print(torch.mean(grad_values))
                         group['old_params'][l] = p.data.clone().detach()
-                        group['old_params'][l].grad = p.grad.clone()
+                        # group['old_params'][l].grad = p.grad.clone()
                         p.data.add_(grad_values, alpha=-group['lr'])
                     
         return loss
