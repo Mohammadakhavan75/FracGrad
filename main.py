@@ -6,9 +6,11 @@ from torchvision.datasets import MNIST
 from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader, random_split
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import argparse
 import time
+import pickle 
+import os
 from grads import grads
 from operators import operators
 from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
@@ -109,8 +111,8 @@ def load_cifar10():
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     ])
     
-    train_dataset = CIFAR10(root='./data', train=True, transform=transform, download=True)
-    test_dataset = CIFAR10(root='./data', train=False, transform=transform, download=True)
+    train_dataset = CIFAR10(root='D:/Datasets/data', train=True, transform=transform, download=True)
+    test_dataset = CIFAR10(root='D:/Datasets/data', train=False, transform=transform, download=True)
     
     train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
@@ -124,9 +126,11 @@ def load_cifar10():
 
 # Train the model
 def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
-    # torch.set_printoptions(precision=20, sci_mode=False)
-    BB=False
-    ii=0
+    pickle_saver={}
+    # save_path = f'./run/exp_{args.dataset}_{args.learning_rate}_{args.optimizer}_epochs_{epochs}/'
+    save_path = f'./run/exp_cifar10_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}/'
+    model_save_path = os.path.join(save_path, 'models')
+    os.makedirs(model_save_path, exist_ok=True)
     for epoch in range(epochs):
         model.train()
         train_loss = []
@@ -136,7 +140,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
             images = images.to(args.device)
             labels = labels.to(args.device)
             images = images.view(-1, 32*32*3)
-            # labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             
             optimizer.zero_grad()
             outputs = model(images)
@@ -147,19 +150,17 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
             e = time.time()
             batch_time.append(e-s)
             train_loss.append(loss.item())
-            if ii > 2:
-                exit()
-            ii += 1
-        #     if torch.isnan(optimizer.param_groups[0]['params'][0][-1][-1]):
-        #         BB = True
-        #         print("BB maker :", optimizer.param_groups[0]['params'][0][-1])
-        #         break
-        # if BB:
-        #     break
+
         print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
-        
-        # validate_model(model, val_loader, criterion)
+        pickle_saver[epoch+1] = {'batch_time': batch_time, 'train_loss': train_loss} # Tuple ya List ham mishe gozasht
+
+    save_results(pickle_saver, filename=os.path.join(save_path, 'training_results.pkl'))
     return train_loss
+
+
+def save_results(results, filename):
+    with open(filename, 'wb') as file:
+        pickle.dump(results, file)
 
 # Validate the model
 def validate_model(model, val_loader, criterion):
@@ -240,7 +241,7 @@ def main():
     # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
     # optimizer= psgd(model.parameters(),  lr=args.lr)
-    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5)
+    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
     # test_loss = evaluate_model(model, test_loader)
 
     # diaplying model train_loss
