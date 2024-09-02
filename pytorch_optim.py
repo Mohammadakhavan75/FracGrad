@@ -43,18 +43,13 @@ class SGD(Optimizer):
                     if l not in group['old_params']:# FIRST_ITERATION
                         group['old_params'][l] = p.data.clone().detach()
                         p.data.add_(p.grad, alpha=-group['lr'])
+
                     else: # continue_of_the_iterations
-                        # vector = [torch.randn_like(p) for p in model.parameters()]
-                        vector = torch.ones_like(p)
-                        grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
-                        # Compute Hessian-vector product
-                        second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                         grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
                         group['old_params'][l] = p.data.clone().detach()
                         p.data.add_(grad_values, alpha=-group['lr'])
                     
-        return loss
-
 
 class AdaGrad(Optimizer):
     def __init__(self, params, operator, lr=0.03, eps=1e-10):
