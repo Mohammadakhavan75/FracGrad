@@ -259,7 +259,7 @@ def main():
     # print(f'Total test loss is {test_loss}')
     # diaplying model val_loss
     # display_loss(val_loss)
-    
+
     
     
 main()
