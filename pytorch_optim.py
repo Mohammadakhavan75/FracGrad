@@ -1,10 +1,5 @@
-from torch.optim.optimizer import Optimizer
-from operators import operators
-import torch.nn.functional as F
-import numpy as np
-import random
 import torch
-import copy
+from torch.optim.optimizer import Optimizer
 
 
 class grad_generator(torch.autograd.Function):
@@ -18,6 +13,7 @@ class grad_generator(torch.autograd.Function):
         # Add a constant to the gradient
         # return grad_output * 1000
         return grad_output
+
 
 class SGD(Optimizer):
     def __init__(self, params, operator=None, lr=0.03):
@@ -72,22 +68,22 @@ class AdaGrad(Optimizer):
                 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    p.data.add_(p.grad, alpha=-group['lr'])
+                    group['old_params'][l].grad = p.grad.clone()
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    group['sum_of_squared_grads'][l] = torch.pow(grad_values, 2)
+                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
+                    grad_values = grad_values * adjusted_lr
+                    p.data.add_(grad_values, alpha=-group['lr'])
                 else:
-                    vector = torch.ones_like(p)
-                    grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
-                    second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                    second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                     grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                    
                     group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
                     group['sum_of_squared_grads'][l].add_(torch.pow(grad_values, 2))
                     adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
                     grad_values = grad_values * adjusted_lr
                     p.data.add_(grad_values, alpha=-group['lr'])
-        return loss
     
-import torch
-from torch.optim.optimizer import Optimizer
 
 class RMSProp(Optimizer):
     def __init__(self, params, operator, lr=0.01, eps=1e-8, alpha=0.99):
@@ -107,20 +103,18 @@ class RMSProp(Optimizer):
 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    p.data.add_(p.grad, alpha=-group['lr'])
+                    group['old_params'][l].grad = p.grad.clone()
+                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) 
                 else:
-                    vector = torch.ones_like(p)
-                    grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
-                    # Compute Hessian-vector product
-                    second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                    second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                     grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
                     group['old_params'][l] = p.data.clone().detach()
+                    group['old_params'][l].grad = p.grad.clone()
                     group['accumulated_grad'][l] = group['accumulated_grad'][l] + group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * (grad_values ** 2)
 
                 scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt() + group['eps'])
                 p.data.add_(scaled_grad, alpha=-group['lr'])
-
-        return loss
 
 
 class Adam(Optimizer):
@@ -145,16 +139,14 @@ class Adam(Optimizer):
                 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    p.data.add_(p.grad, alpha=-group['lr'])
+                    group['old_params'][l].grad = p.grad.clone()
                     group['moment1'][l] = torch.zeros_like(p.data)
                     group['moment2'][l] = torch.zeros_like(p.data)
-
-                vector = torch.ones_like(p)
-                grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
+             
                 group['old_params'][l] = p.data.clone().detach()
-                second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                group['old_params'][l].grad = p.grad.clone()
+                second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                 grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                
                 group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
                 group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * (grad_values ** 2)
 
@@ -163,51 +155,3 @@ class Adam(Optimizer):
 
                 scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
                 p.data.add_(scaled_grad, alpha=-group['lr'])
-
-        return loss
-
-                
-# class SimpleModel(torch.nn.Module):
-#     def __init__(self):
-#         super(SimpleModel, self).__init__()
-#         self.fc1 = torch.nn.Linear(784, 128)
-#         self.fc2 = torch.nn.Linear(128, 10)
-
-#     def forward(self, x):
-#         x = F.relu(self.fc1(x))
-#         x = self.fc2(x)
-#         return x
-
-# model = SimpleModel()
-
-# # Example data
-# num_epochs = 5
-# batch_size = input_size = 784
-# num_classes = 10
-# torch.manual_seed(1)
-# np.random.seed(1)
-# random.seed(1)
-
-# data = torch.randn(batch_size, input_size)
-# target = torch.randint(0, num_classes, (batch_size,))
-
-# criterion = torch.nn.CrossEntropyLoss()
-# operator_instance = operators(grad_func=torch.autograd.grad)
-# optimizer = SGD(model.parameters(), lr=0.01, operator=operator_instance.fractional)  # Use the integer method for example
-
-# # Training loop
-# for epoch in range(num_epochs):
-#     model.train()
-#     optimizer.zero_grad()
-
-#     # Forward pass
-#     output = model(data) 
-#     loss = criterion(output, target)
-
-#     # Backward pass
-#     loss.backward()
-
-#     # Step with custom gradient function
-#     optimizer.step()
-
-#     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
