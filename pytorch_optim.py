@@ -42,31 +42,15 @@ class SGD(Optimizer):
                 else:
                     if l not in group['old_params']:# FIRST_ITERATION
                         group['old_params'][l] = p.data.clone().detach()
-                        # group['old_params'][l].grad = p.grad.clone()
                         p.data.add_(p.grad, alpha=-group['lr'])
                     else: # continue_of_the_iterations
-                        # flat_grads = p.grad.contiguous().view(-1)
-                        # flat_params = p.contiguous().view(-1)
-                        
-                        # vector = torch.ones_like(p.grad)
-                        # second_order_grads = torch.zeros_like(p.grad)
-                        # for i, (flat_grad, flat_param) in enumerate(zip(p.grad, p)):
-                        #     print(p.grad_fn, p.requires_grad, p.retain_grad())
-                        #     print(flat_param.grad_fn, flat_param.requires_grad, flat_param.retain_grad())
-                        #     vector = torch.ones_like(flat_grad)
-                        #     second_order_grads[i] = torch.autograd.grad(flat_grad.dot(vector), flat_param, retain_graph=True)[0]
-                        
                         # vector = [torch.randn_like(p) for p in model.parameters()]
                         vector = torch.ones_like(p)
                         grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
                         # Compute Hessian-vector product
                         second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
-
-                        # second_order_grads = torch.autograd.grad(p.grad.dot(vector), p)[0]
                         grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                        # print(torch.mean(grad_values))
                         group['old_params'][l] = p.data.clone().detach()
-                        # group['old_params'][l].grad = p.grad.clone()
                         p.data.add_(grad_values, alpha=-group['lr'])
                     
         return loss
