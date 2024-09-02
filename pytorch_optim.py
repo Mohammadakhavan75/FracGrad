@@ -72,16 +72,14 @@ class AdaGrad(Optimizer):
                 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
-                    group['sum_of_squared_grads'][l] = torch.pow(grad_values, 2)
-                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
-                    grad_values = grad_values * adjusted_lr
-                    p.data.add_(grad_values, alpha=-group['lr'])
+                    p.data.add_(p.grad, alpha=-group['lr'])
                 else:
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    vector = torch.ones_like(p)
+                    grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
+                    second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                    grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                    
                     group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
                     group['sum_of_squared_grads'][l].add_(torch.pow(grad_values, 2))
                     adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
                     grad_values = grad_values * adjusted_lr
@@ -109,13 +107,14 @@ class RMSProp(Optimizer):
 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
-                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) 
+                    p.data.add_(p.grad, alpha=-group['lr'])
                 else:
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                    vector = torch.ones_like(p)
+                    grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
+                    # Compute Hessian-vector product
+                    second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                    grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
                     group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
                     group['accumulated_grad'][l] = group['accumulated_grad'][l] + group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * (grad_values ** 2)
 
                 scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt() + group['eps'])
@@ -146,13 +145,16 @@ class Adam(Optimizer):
                 
                 if l not in group['old_params']:
                     group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
+                    p.data.add_(p.grad, alpha=-group['lr'])
                     group['moment1'][l] = torch.zeros_like(p.data)
                     group['moment2'][l] = torch.zeros_like(p.data)
-             
+
+                vector = torch.ones_like(p)
+                grad_vector_product = sum(torch.sum(g * v) for g, v in zip(p.grad, vector))
                 group['old_params'][l] = p.data.clone().detach()
-                group['old_params'][l].grad = p.grad.clone()
-                grad_values = group['operator'](p, group['old_params'][l], group['lr'])
+                second_order_grads = torch.autograd.grad(grad_vector_product, p, retain_graph=True)[0]
+                grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                
                 group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
                 group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * (grad_values ** 2)
 
