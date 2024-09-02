@@ -131,7 +131,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
     save_path = f'./run/exp_cifar10_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}/'
     model_save_path = os.path.join(save_path, 'models')
     os.makedirs(model_save_path, exist_ok=True)
+<<<<<<< HEAD
     
+=======
+>>>>>>> e180abae811e3e5881a0d6a36da1224c77a4661a
     for epoch in range(epochs):
         model.train()
         train_loss = []
@@ -153,6 +156,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
             e = time.time()
             batch_time.append(e-s)
             train_loss.append(loss.item())
+<<<<<<< HEAD
             
             # Calculate accuracy
             _, predicted = torch.max(outputs.data, 1)
@@ -162,6 +166,11 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
         accuracy = 100 * correct / total
         print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, Accuracy: {accuracy:.2f}%, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
         pickle_saver[epoch+1] = {'batch_time': batch_time, 'train_loss': train_loss, 'accuracy': accuracy}
+=======
+
+        print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
+        pickle_saver[epoch+1] = {'batch_time': batch_time, 'train_loss': train_loss} # Tuple ya List ham mishe gozasht
+>>>>>>> e180abae811e3e5881a0d6a36da1224c77a4661a
 
     save_results(pickle_saver, filename=os.path.join(save_path, 'training_results.pkl'))
     return train_loss
@@ -262,4 +271,8 @@ def main():
 
     
     
+<<<<<<< HEAD
+=======
+    
+>>>>>>> e180abae811e3e5881a0d6a36da1224c77a4661a
 main()
