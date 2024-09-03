@@ -30,10 +30,12 @@ class operators():
 
     def distributed_fractional(self, p, pm_1, second_order_grad):
         d_alpha = (self.alpha2 - self.alpha1) / self.N
-        delta_alpha = (self.alpha2 - self.alpha1)
-
-        integral_left = lambda alpha: ((2 * (alpha - self.alpha1)) / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
-        integral_right = lambda alpha: ((2 * (alpha - self.alpha1)) / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        # delta_alpha = (self.alpha2 - self.alpha1)
+        delta_alpha = d_alpha
+        
+        # OMEGA = (2 * (alpha - self.alpha1))
+        integral_left = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        integral_right = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
         delta = delta_alpha * integral_left(self.alpha1) * 0.5
         for n in range(1, self.N):
