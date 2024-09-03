@@ -18,8 +18,10 @@ from models.resnet import ResNet18
 from tqdm import tqdm
 # Define model
 def init_model(args):
-    model = Net(3072, 128, 10)
-    # model = ResNet18(10)
+    if args.model == 'fc1':
+        model = Net(3072, 128, 10)
+    if args.model == 'resnet18':
+        model = ResNet18(10)
     model = model.to(args.device)
     criterion = nn.CrossEntropyLoss()
     # criterion = nn.MSELoss()
@@ -42,18 +44,15 @@ def init_model(args):
     else:
         raise ValueError(f"Unknown gradient function: {args.grad}")
 
+    OPT = operators(G, alpha1=args.alphas[0], alpha2=args.alphas[1])
+
     if args.operator == "integer":
-        OPT = operators(G)
-        # OPT = OPT.integer
         OPT = None
     elif args.operator == "fractional":
-        OPT = operators(G)
         OPT = OPT.fractional
     elif args.operator == "multi_fractional":
-        OPT = operators(G)
         OPT = OPT.multi_fractional
     elif args.operator == "distributed_fractional":
-        OPT = operators(G)
         OPT = OPT.distributed_fractional
     else:
         raise ValueError(f"Unknown operator: {args.operator}")
@@ -81,6 +80,7 @@ class Net(nn.Module):
         # self.softmax = nn.Softmax(dim=1)
     
     def forward(self, x):
+        x = x.view(-1, 32*32*3)
         out = self.fc1(x)
         out = self.relu1(out)
         out = self.fc3(out)
@@ -128,7 +128,7 @@ def load_cifar10():
 def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
     pickle_saver={}
     # save_path = f'./run/exp_{args.dataset}_{args.learning_rate}_{args.optimizer}_epochs_{epochs}/'
-    save_path = f'./run/exp_cifar10_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}/'
+    save_path = f'./run/exp_cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
     model_save_path = os.path.join(save_path, 'models')
     os.makedirs(model_save_path, exist_ok=True)
     
@@ -142,7 +142,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
         for images, labels in tqdm(train_loader):
             images = images.to(args.device)
             labels = labels.to(args.device)
-            images = images.view(-1, 32*32*3)
             
             optimizer.zero_grad()
             outputs = model(images)
@@ -232,8 +231,11 @@ def main():
     parser.add_argument('--operator', default='multi_fractional', choices=opers)
     parser.add_argument('--optimizer', default='sgd', choices=optims)
     parser.add_argument('--device', default='cuda')
+    parser.add_argument('--model', default='fc1')
+    parser.add_argument('--alphas', type=str, default="[0.9, 1.1]")
     args = parser.parse_args()
 
+    args.alphas = [int(x) for x in eval(args.alphas)]
     my_seed = 1
     import random
     torch.manual_seed(my_seed)
@@ -262,8 +264,4 @@ def main():
 
     
     
-<<<<<<< HEAD
-=======
-    
->>>>>>> e180abae811e3e5881a0d6a36da1224c77a4661a
 main()
