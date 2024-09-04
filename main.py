@@ -263,5 +263,5 @@ def main():
     # display_loss(val_loss)
 
     
-    
-main()
+if __name__ == '__main__':
+    main()
