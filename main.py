@@ -1,370 +1,276 @@
-from network import Net
-from optimizers import Optimizer
-from tensorflow.keras.datasets import mnist
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
+from torchvision.datasets import MNIST
+from torchvision.datasets import CIFAR10
+from torch.utils.data import DataLoader, random_split
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-import seaborn as sns
-import pickle 
-import time
-
-def load_mnist():
-    (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    x_train = np.reshape(x_train, [-1, 28*28])
-    x_test = np.reshape(x_test, [-1, 28*28])
-    y_train = tf.keras.utils.to_categorical(y_train, 10)
-    y_test = tf.keras.utils.to_categorical(y_test, 10)
-    x_train = x_train/np.max(x_train)
-    x_test = x_test/np.max(x_test)
-    return x_train, y_train, x_test, y_test
-
-def run_tf_model(x_train, y_train, x_test, y_test):
-    model = Sequential()
-    model.add(Dense(256, activation='relu', input_shape=(784,)))
-    model.add(Dense(10, activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='sgd', metrics=['accuracy'])
-    print("\nFitting Model...")
-    model.fit(x_train, y_train, batch_size=32, epochs=5, validation_split=0.2)
-    print("\nEvaluating Model...")
-    model.evaluate(x_test, y_test)
-
-
-# x_train, y_train, x_test, y_test= load_mnist()
-opt = Optimizer()
-# model = Net(x_train, y_train, [256, 10], batch_size=8)
-
-# hist_all = []
-# epoch = 5
-# for ep in range(epoch):
-#     print("EPOCH: ", ep)
-#     for b in range(int(x_test.shape[0]/model.batch_size)):
-#         print("Batch step: ", b)
-#         x, history_int = opt.optimizer(model.categorical_cross_entropy, model.w_flatten, lr=0.03, return_history=True)
-#         x, history_frac = opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha=0.9, return_history=True)
-#         x, history_multi_frac = opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=1.1, alpha2=0.9, return_history=True)
-#         x, history_dist_frac = opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten,  lr=0.03, alpha1=0.1, alpha2=1.1, return_history=True)
-        
-#         plt.savefig("batch_" + str(b) + ".png", dpi=500)
-
-#         hist_all.append([history_int, history_frac, history_multi_frac, history_dist_frac])
-#         model.batch_counter += model.batch_size
-
-
+# import matplotlib.pyplot as plt
 import argparse
+import time
+import pickle 
+import os
 from grads import grads
 from operators import operators
-from optimizers import SGD, Adagrad, RMSProp, Adam
-grad_funcs = ['grad', 'Ggamma', 'Glearning_rate', 'Reimann_Liouville', 'Caputo', 'Reimann_Liouville_fromG', 'Caputo_fromG']
-opers = ['integer', 'fractional', 'multi_fractional', 'distributed_fractional']
-optims = ['sgd', 'adagrad', 'rmsprop', 'adam']
+from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
+from models.resnet import ResNet18
+from tqdm import tqdm
+# Define model
+def init_model(args):
+    if args.model == 'fc1':
+        model = Net(3072, 128, 10)
+    if args.model == 'resnet18':
+        model = ResNet18(10)
+    model = model.to(args.device)
+    criterion = nn.CrossEntropyLoss()
+    # criterion = nn.MSELoss()
+    
+    if args.grad == 'grad':
+        # G = grads.grad
+        G = torch.autograd.grad
+    elif args.grad == 'Ggamma':
+        G = grads.Ggamma
+    elif args.grad == 'Glearning_rate':
+        G = grads.Glearning_rate
+    elif args.grad == 'Reimann_Liouville':
+        G = grads.Reimann_Liouville
+    elif args.grad == 'Caputo':
+        G = grads.Caputo
+    elif args.grad == 'Reimann_Liouville_fromG':
+        G = grads.Reimann_Liouville_fromG
+    elif args.grad == 'Caputo_fromG':
+        G = grads.Caputo_fromG
+    else:
+        raise ValueError(f"Unknown gradient function: {args.grad}")
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--grad', choices=grad_funcs)
-parser.add_argument('--operator', choices=opers)
-parser.add_argument('--optimizer', choices=optims)
-args = parser.parse_args()
+    OPT = operators(G, alpha1=args.alphas[0], alpha2=args.alphas[1])
 
-if args.grad == 'grad':
-    G = grads.grad
-elif args.grad == 'Ggamma':
-    G = grads.Ggamma
-elif args.grad == 'Glearning_rate':
-    G = grads.Glearning_rate
-elif args.grad == 'Reimann_Liouville':
-    G = grads.Reimann_Liouville
-elif args.grad == 'Caputo':
-    G = grads.Caputo
-elif args.grad == 'Reimann_Liouville_fromG':
-    G = grads.Reimann_Liouville_fromG
-elif args.grad == 'Caputo_fromG':
-    G = grads.Caputo_fromG
-else:
-    raise ValueError(f"Unknown gradient function: {args.grad}")
+    if args.operator == "integer":
+        OPT = None
+    elif args.operator == "fractional":
+        OPT = OPT.fractional
+    elif args.operator == "multi_fractional":
+        OPT = OPT.multi_fractional
+    elif args.operator == "distributed_fractional":
+        OPT = OPT.distributed_fractional
+    else:
+        raise ValueError(f"Unknown operator: {args.operator}")
+
+    if args.optimizer == "sgd":
+        OPTIM = SGD(model.parameters(), OPT, lr=args.lr)
+    elif args.optimizer == "adagrad":
+        OPTIM = AdaGrad(model.parameters(), OPT, lr=args.lr)
+    elif args.optimizer == "rmsprop":
+        OPTIM = RMSProp(model.parameters(), OPT, lr=args.lr)
+    elif args.optimizer == "adam":
+        OPTIM = Adam(model.parameters(), OPT, lr=args.lr)
+    else:
+        raise ValueError(f"Unknown optimizer: {args.optimizer}")
+
+    return OPTIM, model, criterion
+
+# Define the neural network model
+class Net(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.relu1 = nn.ReLU()
+        self.fc3 = nn.Linear(hidden_size, output_size)
+        # self.softmax = nn.Softmax(dim=1)
+    
+    def forward(self, x):
+        x = x.view(-1, 32*32*3)
+        out = self.fc1(x)
+        out = self.relu1(out)
+        out = self.fc3(out)
+        # out = self.softmax(out)
+        return out
+
+# Load and preprocess the MNIST dataset
+# def load_mnist():
+#     # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+#     transform = transforms.Compose([transforms.ToTensor()])
+#     train_dataset = MNIST(root='./data', train=True, transform=transform, download=True)
+#     test_dataset = MNIST(root='./data', train=False, transform=transform, download=True)
+    
+#     train_size = int(0.8 * len(train_dataset))
+#     val_size = len(train_dataset) - train_size
+#     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+    
+#     train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
+#     val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=False)
+#     test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
+    
+#     return train_loader, val_loader, test_loader
 
 
-if args.operator == "integer":
-    OPT = operators(G)
-    OPT = OPT.integer
-elif args.operator == "fractional":
-    OPT = operators(G)
-    OPT = operators.fractional(G)
-elif args.operator == "multi_fractional":
-    OPT = operators(G)
-    OPT = operators.multi_fractional(G)
-elif args.operator == "distributed_fractional":
-    OPT = operators(G)
-    OPT = operators.distributed_fractional(G)
-else:
-    raise ValueError(f"Unknown operator: {args.operator}")
+def load_cifar10():
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
+    
+    train_dataset = CIFAR10(root='D:/Datasets/data', train=True, transform=transform, download=True)
+    test_dataset = CIFAR10(root='D:/Datasets/data', train=False, transform=transform, download=True)
+    
+    train_size = int(0.8 * len(train_dataset))
+    val_size = len(train_dataset) - train_size
+    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
+    
+    train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=False)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
+    
+    return train_loader, val_loader, test_loader
 
-if args.optimizer == "sgd":
-    OPTIM = SGD(OPT)
-elif args.optimizer == "adagrad":
-    OPTIM = Adagrad(OPT)
-elif args.optimizer == "rmsprop":
-    OPTIM = RMSProp(OPT)
-elif args.optimizer == "adam":
-    OPTIM = Adam(OPT)
-else:
-    raise ValueError(f"Unknown optimizer: {args.optimizer}")
+# Train the model
+def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
+    pickle_saver={}
+    # save_path = f'./run/exp_{args.dataset}_{args.learning_rate}_{args.optimizer}_epochs_{epochs}/'
+    root_addr = f'./run/exp_{args.exp_idx}/'
 
-
-
-
-
-x_train, y_train, x_test, y_test= load_mnist()
-pca = PCA(10)
-x_train = pca.fit_transform(x_train)
-x_test = pca.transform(x_test)
-
-print("Starting GD")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_int = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.optimizer(model.categorical_cross_entropy, model.w_flatten, model,lr=0.03, max_iter=10)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_int.append(temp_loss)
-        print(f"GD, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
+    while os.path.exists(root_addr):
+        args.exp_idx += 1
+        root_addr = root_addr.split('_')[0] + '_' +  str(args.exp_idx) + '/'
         
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_GD")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-sns.lineplot(hist_int, label="int")
-plt.savefig("Int_Loss.png", dpi=500)
-plt.close()
-
-with open('hist_int.pkl', 'wb') as f:
-    pickle.dump(hist_int, f)
-
-print("Starting Fractional")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_frac = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha=0.9, max_iter=10)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_frac.append(temp_loss)
-        print(f"Fractional, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_Frac")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-sns.lineplot(hist_int, label="int")
-sns.lineplot(hist_frac, label="frac")
-plt.savefig("Int_Frac.png", dpi=500)
-plt.close()
-
-with open('hist_frac.pkl', 'wb') as f:
-    pickle.dump(hist_frac, f)
-
-print("Starting Multi Fractional")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_multi = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.multi_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_multi.append(temp_loss)
-        print(f"Multi, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
+    os.makedirs(root_addr)
+    print(root_addr)
+    save_path = root_addr + f'cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
+    model_save_path = os.path.join(save_path, 'models')
+    os.makedirs(model_save_path, exist_ok=True)
+    
+    for epoch in range(epochs):
+        model.train()
+        train_loss = []
+        batch_time = []
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        for images, labels in tqdm(train_loader):
+            images = images.to(args.device)
+            labels = labels.to(args.device)
+            
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            s = time.time()
+            loss.backward(create_graph=True)
+            optimizer.step()
+            e = time.time()
+            batch_time.append(e-s)
+            train_loss.append(loss.item())
+            
+            # Calculate accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
         
-        model.batch_counter += model.batch_size
+        accuracy = 100 * correct / total
+        print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, Accuracy: {accuracy:.2f}%, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
+        pickle_saver[epoch+1] = {'batch_time': batch_time, 'train_loss': train_loss, 'accuracy': accuracy}
 
-d=time.time()
-model.save_model(name="model_Frac_Multi")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-sns.lineplot(hist_int, label="int")
-sns.lineplot(hist_frac, label="frac")
-sns.lineplot(hist_multi, label="multi")
-plt.savefig("Int_Frac_Multi.png", dpi=500)
-plt.close()
-
-with open('hist_multi.pkl', 'wb') as f:
-    pickle.dump(hist_multi, f)
-
-print("Starting Distribute Fractional")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_dist = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.dist_frac_optimizer(model.categorical_cross_entropy, model.w_flatten, model, lr=0.03, alpha1=0.9, alpha2=1.1, max_iter=10, N=10)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_dist.append(temp_loss)
-        print(f"Distribute, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_Frac_dist")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-with open('hist_dist.pkl', 'wb') as f:
-    pickle.dump(hist_dist, f)
-
-sns.lineplot(data=hist_int, label="int")
-sns.lineplot(data=hist_frac, label="frac")
-sns.lineplot(data=hist_multi, label="multi")
-sns.lineplot(data=hist_dist, label="dist")
-plt.savefig("Int_Frac_Multi_Dist.png", dpi=500)
-plt.close()
-
-##########################################
-
-print("Reimann_Liouville")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_RL = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Reimann_Liouville)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_RL.append(temp_loss)
-        print(f"Reimann_Liouville, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_Reimann_Liouville")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-with open('hist_Reimann_Liouville.pkl', 'wb') as f:
-    pickle.dump(hist_RL, f)
-
-sns.lineplot(data=hist_int, label="int")
-sns.lineplot(data=hist_frac, label="frac")
-sns.lineplot(data=hist_multi, label="multi")
-sns.lineplot(data=hist_dist, label="dist")
-sns.lineplot(data=hist_RL, label="RL")
-plt.savefig("Int_Frac_Multi_Dist_RL.png", dpi=500)
-plt.close()
-
-print("Caputo")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_Caputo = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Caputo)
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_Caputo.append(temp_loss)
-        print(f"Caputo, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_Caputo")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-with open('hist_Caputo', 'wb') as f:
-    pickle.dump(hist_Caputo, f)
-
-sns.lineplot(data=hist_int, label="int")
-sns.lineplot(data=hist_frac, label="frac")
-sns.lineplot(data=hist_multi, label="multi")
-sns.lineplot(data=hist_dist, label="dist")
-sns.lineplot(data=hist_RL, label="RL")
-sns.lineplot(data=hist_Caputo, label="Cap")
-plt.savefig("Int_Frac_Multi_Dist_RL_Cap.png", dpi=500)
-plt.close()
+    save_results(pickle_saver, filename=os.path.join(save_path, 'training_results.pkl'))
+    return train_loss
 
 
-print("Reimann_Liouville_GLR")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_RL_GLR = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Reimann_Liouville, lr=opt.Glearning_rate(model.w_flatten))
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_RL_GLR.append(temp_loss)
-        print(f"Reimann_Liouville_GLR, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-        model.batch_counter += model.batch_size
+def save_results(results, filename):
+    with open(filename, 'wb') as file:
+        pickle.dump(results, file)
 
-d=time.time()
-model.save_model(name="model_Reimann_Liouville_GLR")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
+# Validate the model
+def validate_model(model, val_loader, criterion):
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for images, labels in val_loader:
+            images = images.view(-1, 28*28)
+            labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
+            
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            
+            val_loss += loss.item()
+    
+    print(f'Validation Loss: {val_loss/len(val_loader):.4f}')
 
-with open('hist_Reimann_Liouville_GLR.pkl', 'wb') as f:
-    pickle.dump(hist_RL_GLR, f)
-
-sns.lineplot(data=hist_int, label="int")
-sns.lineplot(data=hist_frac, label="frac")
-sns.lineplot(data=hist_multi, label="multi")
-sns.lineplot(data=hist_dist, label="dist")
-sns.lineplot(data=hist_RL, label="RL")
-sns.lineplot(data=hist_Caputo, label="Cap")
-sns.lineplot(data=hist_Caputo, label="RL_GLR")
-plt.savefig("Int_Frac_Multi_Dist_RL_Cap_RLGLR.png", dpi=500)
-plt.close()
-
-
-print("Caputo_GLR")
-s=time.time()
-epoch = 5
-model = Net(x_train, y_train, [10, 10], batch_size=64)
-hist_Caputo_GLR = []
-for ep in range(epoch):
-    print("EPOCH: ", ep)
-    for b in range(int(x_test.shape[0]/model.batch_size)):
-        opt.gen_frac_opt(model.categorical_cross_entropy, model.w_flatten, model, D=opt.Caputo, lr=opt.Glearning_rate(model.w_flatten))
-        temp_loss = model.categorical_cross_entropy(model.w_flatten)
-        hist_Caputo_GLR.append(temp_loss)
-        print(f"Caputo_GLR, EPOCH: {ep}, Batch step: {b}, Loss: {temp_loss}")
-        
-        model.batch_counter += model.batch_size
-
-d=time.time()
-model.save_model(name="model_Caputo_GLR")
-print(f"time is: {d-s}")
-print(model.eval(w=model.w_flatten, x=x_test, y=y_test))
-
-with open('hist_Caputo_GLR.pkl', 'wb') as f:
-    pickle.dump(hist_Caputo_GLR, f)
+# Evaluate the model
+def evaluate_model(model, test_loader, criterion):
+    model.eval()
+    correct = 0
+    total = 0
+    te_loss = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images = images.view(-1, 28*28)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            te_loss += loss.item()
+    
+    print(f'Test Accuracy: {100 * correct / total:.2f}%')
+    return te_loss/len(test_loader)
 
 
-sns.lineplot(data=hist_int, label="int")
-sns.lineplot(data=hist_frac, label="frac")
-sns.lineplot(data=hist_multi, label="multi")
-sns.lineplot(data=hist_dist, label="dist")
-sns.lineplot(data=hist_RL, label="RL")
-sns.lineplot(data=hist_Caputo, label="Cap")
-sns.lineplot(data=hist_Caputo, label="RL_GLR")
-sns.lineplot(data=hist_Caputo, label="RL_GLR")
-plt.savefig("Int_Frac_Multi_Dist_RL_Cap_RLGLR_CapGLR.png", dpi=500)
-plt.close()
+def display_loss(train_loss):
+    plt.figure(figsize=(10, 5))
+    plt.plot(range(1, len(train_loss) + 1), train_loss, marker='o', linestyle='-', color='b')
+    plt.title('Training Loss over Epochs')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.grid(True)
+    plt.xticks(range(1, len(train_loss) + 1))  # To show all epochs on x-axis
+    plt.show()
+
+
+from torch.optim import SGD as psgd
+    
+def main():
+       
+    grad_funcs = ['grad', 'Ggamma', 'Glearning_rate', 'Reimann_Liouville', 'Caputo', 'Reimann_Liouville_fromG', 'Caputo_fromG']
+    opers = ['integer', 'fractional', 'multi_fractional', 'distributed_fractional']
+    optims = ['sgd', 'adagrad', 'rmsprop', 'adam']
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--lr', default=0.1, type=float)
+    parser.add_argument('--grad', default='grad', choices=grad_funcs)
+    parser.add_argument('--operator', default='multi_fractional', choices=opers)
+    parser.add_argument('--optimizer', default='sgd', choices=optims)
+    parser.add_argument('--device', default='cuda')
+    parser.add_argument('--model', default='fc1')
+    parser.add_argument('--alphas', type=str, default="[0.9, 1.1]")
+    parser.add_argument('--exp_idx', type=int, default=0)
+    args = parser.parse_args()
+
+    args.alphas = [int(x) for x in eval(args.alphas)]
+    my_seed = 1
+    import random
+    torch.manual_seed(my_seed)
+    np.random.seed(my_seed)
+    random.seed(my_seed)
+    train_loader, val_loader, test_loader = load_cifar10()
+    
+    input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
+    hidden_size = 256
+    output_size = 10
+    
+    # model = Net(input_size, hidden_size, output_size)
+    
+    # criterion = nn.CrossEntropyLoss()
+    optimizer, model, criterion = init_model(args)
+    # optimizer= psgd(model.parameters(),  lr=args.lr)
+    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
+    # test_loss = evaluate_model(model, test_loader)
+
+    # diaplying model train_loss
+    # display_loss(train_loss)
+    # print(f'Total train loss is {train_loss}')
+    # print(f'Total test loss is {test_loss}')
+    # diaplying model val_loss
+    # display_loss(val_loss)
+
+    
+if __name__ == '__main__':
+    main()
