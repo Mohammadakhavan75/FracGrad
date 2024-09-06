@@ -38,6 +38,7 @@ class operators():
         integral_right = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
         delta = delta_alpha * integral_left(self.alpha1) * 0.5
+
         for n in range(1, self.N):
             if (1 - (self.alpha1 + n * d_alpha)) > 0 :
                 delta += delta_alpha * integral_left(self.alpha1 + n * d_alpha)

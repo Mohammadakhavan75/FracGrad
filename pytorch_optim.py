@@ -1,14 +1,21 @@
+from torch.optim.optimizer import Optimizer
+import torch.nn.functional as F
+import numpy as np
+import random
 import torch
+
 from torch.optim.optimizer import Optimizer
 
 
 class grad_generator(torch.autograd.Function):
+
     @staticmethod
     def forward(ctx, input):
         ctx.save_for_backward(input)
         return input 
 
     @staticmethod
+
     def backward(ctx, grad_output):
         # Add a constant to the gradient
         # return grad_output * 1000
@@ -122,6 +129,7 @@ class Adam(Optimizer):
         defaults = dict(lr=lr, operator=operator, eps=eps, betas=betas,
                         moment1={}, moment2={}, t=0, old_params={})
         super(Adam, self).__init__(params, defaults)
+
 
     def step(self, closure=None):
         loss = None
