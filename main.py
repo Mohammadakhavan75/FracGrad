@@ -134,9 +134,16 @@ def load_cifar10():
     return train_loader, val_loader, test_loader
 
 # Train the model
-
 def create_save_path(args, epochs):
-    save_path = f'./run/exp_cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
+    root_addr = f'./run/exp_{args.exp_idx}/'
+    
+    while os.path.exists(root_addr):
+        args.exp_idx += 1
+        root_addr = root_addr.split('_')[0] + '_' +  str(args.exp_idx) + '/'
+        
+    os.makedirs(root_addr)
+    print(root_addr)
+    save_path = root_addr + f'cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
     model_save_path = os.path.join(save_path, 'models')
     os.makedirs(model_save_path, exist_ok=True)
     return save_path, model_save_path
@@ -260,6 +267,7 @@ def main():
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--model', default='fc1')
     parser.add_argument('--alphas', type=str, default="[0.9, 1.1]")
+    parser.add_argument('--exp_idx', type=int, default=0)
     args = parser.parse_args()
 
     args.alphas = [int(x) for x in eval(args.alphas)]
@@ -275,5 +283,5 @@ def main():
     optimizer, model, criterion = init_model(args)
     train_loss = train_loop(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
     
-    
-main()
+if __name__ == '__main__':
+    main()
