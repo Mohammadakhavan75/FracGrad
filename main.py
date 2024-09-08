@@ -1,21 +1,27 @@
+import argparse
+import os
+import pickle
+import random
+import time
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.transforms as transforms
-from torchvision.datasets import MNIST
-from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader, random_split
-import numpy as np
-# import matplotlib.pyplot as plt
-import argparse
-import time
-import pickle 
-import os
+from torchvision.datasets import CIFAR10
+from torchvision.datasets import MNIST
+from tqdm import tqdm
+
 from grads import grads
+from models.resnet import ResNet18
 from operators import operators
 from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
-from models.resnet import ResNet18
-from tqdm import tqdm
+from torch.optim import SGD as psgd
+
+
+
 # Define model
 def init_model(args):
     if args.model == 'fc1':
@@ -27,7 +33,6 @@ def init_model(args):
     # criterion = nn.MSELoss()
     
     if args.grad == 'grad':
-        # G = grads.grad
         G = torch.autograd.grad
     elif args.grad == 'Ggamma':
         G = grads.Ggamma
@@ -72,20 +77,24 @@ def init_model(args):
 
 # Define the neural network model
 class Net(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, layer_sizes):
         super(Net, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.relu1 = nn.ReLU()
-        self.fc3 = nn.Linear(hidden_size, output_size)
-        # self.softmax = nn.Softmax(dim=1)
-    
+        # Validate that the list has at least two elements
+        assert len(layer_sizes) >= 2, "The layer_sizes list must contain at least input and output layer sizes."
+        
+        layers = []
+        for i in range(len(layer_sizes) - 1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            if i < len(layer_sizes) - 2:  # Don't add ReLU after the last layer
+                layers.append(nn.ReLU())
+
+        # Use nn.Sequential to stack all layers
+        self.network = nn.Sequential(*layers)
+
     def forward(self, x):
-        x = x.view(-1, 32*32*3)
-        out = self.fc1(x)
-        out = self.relu1(out)
-        out = self.fc3(out)
-        # out = self.softmax(out)
-        return out
+        x = x.view(x.size(0), -1)
+        return self.network(x)
+
 
 # Load and preprocess the MNIST dataset
 # def load_mnist():
@@ -125,58 +134,69 @@ def load_cifar10():
     return train_loader, val_loader, test_loader
 
 # Train the model
-def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
-    pickle_saver={}
-    # save_path = f'./run/exp_{args.dataset}_{args.learning_rate}_{args.optimizer}_epochs_{epochs}/'
-    root_addr = f'./run/exp_{args.exp_idx}/'
 
-    while os.path.exists(root_addr):
-        args.exp_idx += 1
-        root_addr = root_addr.split('_')[0] + '_' +  str(args.exp_idx) + '/'
-        
-    os.makedirs(root_addr)
-    print(root_addr)
-    save_path = root_addr + f'cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
+def create_save_path(args, epochs):
+    save_path = f'./run/exp_cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
     model_save_path = os.path.join(save_path, 'models')
     os.makedirs(model_save_path, exist_ok=True)
-    
+    return save_path, model_save_path
+
+def train(model, train_loader, criterion, optimizer, args):
+    model.train()
+    train_loss = []
+    batch_time = []
+    correct = 0
+    total = 0
+
+    for images, labels in tqdm(train_loader):
+        images = images.to(args.device)
+        labels = labels.to(args.device)
+
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        s = time.time()
+        loss.backward(create_graph=True)
+        optimizer.step()
+        e = time.time()
+        batch_time.append(e-s)
+        train_loss.append(loss.item())
+
+        # Calculate accuracy
+        _, predicted = torch.max(outputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    return np.mean(train_loss), accuracy, np.mean(batch_time), np.sum(batch_time), batch_time, train_loss
+
+def train_loop(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
+    pickle_saver = {}
+    save_path, model_save_path = create_save_path(args, epochs)
+
     for epoch in range(epochs):
-        model.train()
-        train_loss = []
-        batch_time = []
-        running_loss = 0.0
-        correct = 0
-        total = 0
-        for images, labels in tqdm(train_loader):
-            images = images.to(args.device)
-            labels = labels.to(args.device)
-            
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            s = time.time()
-            loss.backward(create_graph=True)
-            optimizer.step()
-            e = time.time()
-            batch_time.append(e-s)
-            train_loss.append(loss.item())
-            
-            # Calculate accuracy
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-        
-        accuracy = 100 * correct / total
-        print(f'Epoch [{epoch+1}/{epochs}], Loss: {np.mean(train_loss):.16f}, Accuracy: {accuracy:.2f}%, batch mean time: {np.mean(batch_time)}, epoch optimization time: {np.sum(batch_time)}')
-        pickle_saver[epoch+1] = {'batch_time': batch_time, 'train_loss': train_loss, 'accuracy': accuracy}
+        mean_train_loss, accuracy, mean_batch_time, epoch_optimization_time, batch_time, train_loss = train(
+            model, train_loader, criterion, optimizer, args
+        )
+
+        print(f'Epoch [{epoch+1}/{epochs}], Loss: {train_loss:.16f}, Accuracy: {accuracy:.2f}%, '
+              f'batch mean time: {mean_batch_time}, epoch optimization time: {epoch_optimization_time}')
+
+        pickle_saver[epoch+1] = {
+            'maen_batch_time': mean_batch_time,
+            'mean_train_loss': mean_train_loss,
+            'accuracy': accuracy,
+            'batch_time': batch_time,
+            'train_loss': train_loss
+        }
 
     save_results(pickle_saver, filename=os.path.join(save_path, 'training_results.pkl'))
-    return train_loss
-
 
 def save_results(results, filename):
     with open(filename, 'wb') as file:
         pickle.dump(results, file)
+
+
 
 # Validate the model
 def validate_model(model, val_loader, criterion):
@@ -225,15 +245,14 @@ def display_loss(train_loss):
     plt.show()
 
 
-from torch.optim import SGD as psgd
     
 def main():
        
     grad_funcs = ['grad', 'Ggamma', 'Glearning_rate', 'Reimann_Liouville', 'Caputo', 'Reimann_Liouville_fromG', 'Caputo_fromG']
     opers = ['integer', 'fractional', 'multi_fractional', 'distributed_fractional']
     optims = ['sgd', 'adagrad', 'rmsprop', 'adam']
-
     parser = argparse.ArgumentParser()
+    parser.add_argument('--ds',default=MNIST, choices= datasets)
     parser.add_argument('--lr', default=0.1, type=float)
     parser.add_argument('--grad', default='grad', choices=grad_funcs)
     parser.add_argument('--operator', default='multi_fractional', choices=opers)
@@ -241,12 +260,10 @@ def main():
     parser.add_argument('--device', default='cuda')
     parser.add_argument('--model', default='fc1')
     parser.add_argument('--alphas', type=str, default="[0.9, 1.1]")
-    parser.add_argument('--exp_idx', type=int, default=0)
     args = parser.parse_args()
 
     args.alphas = [int(x) for x in eval(args.alphas)]
     my_seed = 1
-    import random
     torch.manual_seed(my_seed)
     np.random.seed(my_seed)
     random.seed(my_seed)
@@ -255,22 +272,8 @@ def main():
     input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
     hidden_size = 256
     output_size = 10
-    
-    # model = Net(input_size, hidden_size, output_size)
-    
-    # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
-    # optimizer= psgd(model.parameters(),  lr=args.lr)
-    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
-    # test_loss = evaluate_model(model, test_loader)
-
-    # diaplying model train_loss
-    # display_loss(train_loss)
-    # print(f'Total train loss is {train_loss}')
-    # print(f'Total test loss is {test_loss}')
-    # diaplying model val_loss
-    # display_loss(val_loss)
-
+    train_loss = train_loop(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
     
-if __name__ == '__main__':
-    main()
+    
+main()
