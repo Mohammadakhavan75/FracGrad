@@ -71,25 +71,26 @@ class AdaGrad(Optimizer):
                     continue
         
                 if group['operator'] is None:
-                    p.data.add_(p.grad, alpha=-group['lr'])
+                    p.data.add_(p.grad, alpha=-group['lr'])   
                 
-                if l not in group['old_params']:
-                    group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
-                    group['sum_of_squared_grads'][l] = torch.pow(grad_values, 2)
-                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
-                    grad_values = grad_values * adjusted_lr
-                    p.data.add_(grad_values, alpha=-group['lr'])
                 else:
-                    second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                    grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                    group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    group['sum_of_squared_grads'][l].add_(torch.pow(grad_values, 2))
-                    adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
-                    grad_values = grad_values * adjusted_lr
-                    p.data.add_(grad_values, alpha=-group['lr'])
+                    if l not in group['old_params']:
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['old_params'][l].grad = p.grad.clone()
+                        grad_values = p.grad
+                        group['sum_of_squared_grads'][l] = torch.pow(grad_values.detach().cpu(), 2)
+                        adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
+                        grad_values = grad_values * adjusted_lr.cuda()
+                        p.data.add_(grad_values, alpha=-group['lr'])
+                    else:
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['old_params'][l].grad = p.grad.clone()
+                        group['sum_of_squared_grads'][l].add_(torch.pow(grad_values.detach().cpu(), 2))
+                        adjusted_lr = 1 / (group['sum_of_squared_grads'][l].sqrt() + group['eps'])
+                        grad_values = grad_values * adjusted_lr.cuda()
+                        p.data.add_(grad_values, alpha=-group['lr'])
     
 
 class RMSProp(Optimizer):
@@ -107,21 +108,28 @@ class RMSProp(Optimizer):
             for l, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
-
-                if l not in group['old_params']:
-                    group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    grad_values = group['operator'](p, group['old_params'][l], group['lr'])
-                    group['accumulated_grad'][l] = (1 - group['alpha']) * (grad_values ** 2) 
                 else:
-                    second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                    grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                    group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    group['accumulated_grad'][l] = group['accumulated_grad'][l] + group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * (grad_values ** 2)
+                    if group['operator'] is None:
+                        p.data.add_(p.grad, alpha=-group['lr'])   
+                        
+                    else:
+                        if l not in group['old_params']:
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            grad_values = p.grad
+                            group['accumulated_grad'][l] = (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2)
+                            scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt().cuda() + group['eps'])
+                            p.data.add_(scaled_grad, alpha=-group['lr'])
+                        else:
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            group['accumulated_grad'][l].add_(group['alpha'] * group['accumulated_grad'][l] + (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2))
 
-                scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt() + group['eps'])
-                p.data.add_(scaled_grad, alpha=-group['lr'])
+                            scaled_grad = grad_values/(group['accumulated_grad'][l].sqrt().cuda() + group['eps'])
+                            
+                            p.data.add_(scaled_grad, alpha=-group['lr'])
 
 
 class Adam(Optimizer):
@@ -143,23 +151,38 @@ class Adam(Optimizer):
             for l, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
+                else:
+                    if group['operator'] is None:
+                        p.data.add_(p.grad, alpha=-group['lr'])   
+                        
+                    else:
+                        if l not in group['old_params']:
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            group['moment1'][l] = torch.zeros_like(p.data)
+                            group['moment2'][l] = torch.zeros_like(p.data)
+                            grad_values = p.grad
+                            
+                            group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
+                            group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * torch.pow(grad_values, 2)
 
-                
-                if l not in group['old_params']:
-                    group['old_params'][l] = p.data.clone().detach()
-                    group['old_params'][l].grad = p.grad.clone()
-                    group['moment1'][l] = torch.zeros_like(p.data)
-                    group['moment2'][l] = torch.zeros_like(p.data)
-             
-                group['old_params'][l] = p.data.clone().detach()
-                group['old_params'][l].grad = p.grad.clone()
-                second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
-                group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * (grad_values ** 2)
+                            m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
+                            m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
 
-                m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
-                m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
+                            scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
+                            p.data.add_(scaled_grad, alpha=-group['lr'])
+                            
+                        else:
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            
+                            group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
+                            group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * torch.pow(grad_values, 2)
 
-                scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
-                p.data.add_(scaled_grad, alpha=-group['lr'])
+                            m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
+                            m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
+
+                            scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
+                            p.data.add_(scaled_grad, alpha=-group['lr'])
