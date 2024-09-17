@@ -163,11 +163,11 @@ class Adam(Optimizer):
                             group['moment2'][l] = torch.zeros_like(p.data)
                             grad_values = p.grad
                             
-                            group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
-                            group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * torch.pow(grad_values, 2)
+                            group['moment1'][l] = beta1 * group['moment1'][l].detach().cpu() + (1 - beta1) * grad_values.detach().cpu()
+                            group['moment2'][l] = beta2 * group['moment2'][l].detach().cpu() + (1 - beta2) * torch.pow(grad_values.detach().cpu(), 2)
 
-                            m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
-                            m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
+                            m1_hat = group['moment1'][l].cuda() / (1 - beta1 ** group['t'])
+                            m2_hat = group['moment2'][l].cuda() / (1 - beta2 ** group['t'])
 
                             scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
                             p.data.add_(scaled_grad, alpha=-group['lr'])
@@ -178,11 +178,11 @@ class Adam(Optimizer):
                             group['old_params'][l] = p.data.clone().detach()
                             group['old_params'][l].grad = p.grad.clone()
                             
-                            group['moment1'][l] = beta1 * group['moment1'][l] + (1 - beta1) * grad_values
-                            group['moment2'][l] = beta2 * group['moment2'][l] + (1 - beta2) * torch.pow(grad_values, 2)
+                            group['moment1'][l] = beta1 * group['moment1'][l].detach().cpu() + (1 - beta1) * grad_values.detach().cpu()
+                            group['moment2'][l] = beta2 * group['moment2'][l].detach().cpu() + (1 - beta2) * torch.pow(grad_values.detach().cpu(), 2)
 
-                            m1_hat = group['moment1'][l] / (1 - beta1 ** group['t'])
-                            m2_hat = group['moment2'][l] / (1 - beta2 ** group['t'])
+                            m1_hat = group['moment1'][l].cuda() / (1 - beta1 ** group['t'])
+                            m2_hat = group['moment2'][l].cuda() / (1 - beta2 ** group['t'])
 
                             scaled_grad =  m1_hat / (m2_hat.sqrt() + group['eps'])
                             p.data.add_(scaled_grad, alpha=-group['lr'])
