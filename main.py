@@ -13,17 +13,24 @@ import pickle
 import os
 from grads import grads
 from operators import operators
-from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
 from models.resnet import ResNet18
 from tqdm import tqdm
 # Define model
 def init_model(args):
+    if args.torch:
+        from torch.optim.rmsprop import RMSprop as RMSProp
+        from torch.optim.adam import Adam
+        from torch.optim.adagrad import Adagrad as AdaGrad
+        from torch.optim.sgd import SGD
+    else:
+        from pytorch_optim import SGD, AdaGrad, RMSProp, Adam
+
     if args.model == 'fc1':
         model = Net(3072, 128, 10)
     if args.model == 'resnet18':
         model = ResNet18(10)
     model = model.to(args.device)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss().to(args.device)
     # criterion = nn.MSELoss()
     
     if args.grad == 'grad':
@@ -57,17 +64,29 @@ def init_model(args):
     else:
         raise ValueError(f"Unknown operator: {args.operator}")
 
-    if args.optimizer == "sgd":
-        OPTIM = SGD(model.parameters(), OPT, lr=args.lr)
-    elif args.optimizer == "adagrad":
-        OPTIM = AdaGrad(model.parameters(), OPT, lr=args.lr)
-    elif args.optimizer == "rmsprop":
-        OPTIM = RMSProp(model.parameters(), OPT, lr=args.lr)
-    elif args.optimizer == "adam":
-        OPTIM = Adam(model.parameters(), OPT, lr=args.lr)
+    if args.torch:
+        if args.optimizer == "sgd":
+            OPTIM = SGD(model.parameters(), lr=args.lr)
+        elif args.optimizer == "adagrad":
+            OPTIM = AdaGrad(model.parameters(), lr=args.lr)
+        elif args.optimizer == "rmsprop":
+            OPTIM = RMSProp(model.parameters(), lr=args.lr)
+        elif args.optimizer == "adam":
+            OPTIM = Adam(model.parameters(), lr=args.lr)
+        else:
+            raise ValueError(f"Unknown optimizer: {args.optimizer}")
     else:
-        raise ValueError(f"Unknown optimizer: {args.optimizer}")
-
+        if args.optimizer == "sgd":
+            OPTIM = SGD(model.parameters(), OPT, lr=args.lr)
+        elif args.optimizer == "adagrad":
+            OPTIM = AdaGrad(model.parameters(), OPT, lr=args.lr)
+        elif args.optimizer == "rmsprop":
+            OPTIM = RMSProp(model.parameters(), OPT, lr=args.lr)
+        elif args.optimizer == "adam":
+            OPTIM = Adam(model.parameters(), OPT, lr=args.lr)
+        else:
+            raise ValueError(f"Unknown optimizer: {args.optimizer}")
+        
     return OPTIM, model, criterion
 
 # Define the neural network model
@@ -238,18 +257,25 @@ def main():
     parser.add_argument('--grad', default='grad', choices=grad_funcs)
     parser.add_argument('--operator', default='multi_fractional', choices=opers)
     parser.add_argument('--optimizer', default='sgd', choices=optims)
-    parser.add_argument('--device', default='cuda')
     parser.add_argument('--model', default='fc1')
     parser.add_argument('--alphas', type=str, default="[0.9, 1.1]")
     parser.add_argument('--exp_idx', type=int, default=0)
+    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--torch', action="store_true")
+    parser.add_argument('--gpu', type=int, default=0)
     args = parser.parse_args()
 
-    args.alphas = [int(x) for x in eval(args.alphas)]
+    args.alphas = [float(x) for x in eval(args.alphas)]
     my_seed = 1
     import random
     torch.manual_seed(my_seed)
     np.random.seed(my_seed)
     random.seed(my_seed)
+    
+    if args.device == 'cuda':    
+        os.environ['CUDA_VISIBLE_DEVICES']='0,1'
+        args.device=f'cuda:{args.gpu}'
+
     train_loader, val_loader, test_loader = load_cifar10()
     
     input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
