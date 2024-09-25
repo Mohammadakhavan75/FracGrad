@@ -62,7 +62,7 @@ class AdaGrad(Optimizer):
                 if group['operator'] is None:
                     grad_values = p.grad
                     if l not in group['sum_of_squared_grads']:
-                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data)
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data.detach().cpu())
 
                     group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
                     # multiply the adjustmnet of lr into grad values
@@ -73,7 +73,7 @@ class AdaGrad(Optimizer):
                     if l not in group['old_params']:
                         group['old_params'][l] = p.data.clone().detach()
                         grad_values = p.grad
-                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data)
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data.detach().cpu())
                         group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
                         p.data.addcdiv_(-group['lr'], grad_values, avg)
                     else:
@@ -100,7 +100,7 @@ class RMSProp(Optimizer):
                 if group['operator'] is None:
                     grad_values = p.grad
                     if l not in group['vt']:
-                        group['vt'][l] = torch.zeros_like(p.data)
+                        group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
 
                     group['vt'][l].mul_(group['alpha']).addcmul_(grad_values, grad_values, value=1 - group['alpha'])
                     avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
