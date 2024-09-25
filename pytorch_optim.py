@@ -62,27 +62,27 @@ class AdaGrad(Optimizer):
                 if group['operator'] is None:
                     grad_values = p.grad
                     if l not in group['sum_of_squared_grads']:
-                        group['sum_of_squared_grads'][l] = torch.pow(grad_values.detach().cpu(), 2)
-                    else:
-                        group['sum_of_squared_grads'][l].add_(torch.pow(grad_values.detach().cpu(), 2))
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data)
+
+                    group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
                     # multiply the adjustmnet of lr into grad values
-                    grad_values = grad_values / (group['sum_of_squared_grads'][l].sqrt() + group['eps']).to(grad_values.device)
-                    p.data.add_(grad_values, alpha=-group['lr'])
+                    avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                    p.data.addcdiv_(-group['lr'], grad_values, avg)
                 
                 else:
                     if l not in group['old_params']:
                         group['old_params'][l] = p.data.clone().detach()
                         grad_values = p.grad
-                        group['sum_of_squared_grads'][l] = torch.pow(grad_values.detach().cpu(), 2)
-                        grad_values = grad_values / (group['sum_of_squared_grads'][l].sqrt() + group['eps']).to(grad_values.device)
-                        p.data.add_(grad_values, alpha=-group['lr'])
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data)
+                        group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
                     else:
                         second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                         grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
                         group['old_params'][l] = p.data.clone().detach()
-                        group['sum_of_squared_grads'][l].add_(torch.pow(grad_values.detach().cpu(), 2))
-                        grad_values = grad_values / (group['sum_of_squared_grads'][l].sqrt() + group['eps']).to(grad_values.device)
-                        p.data.add_(grad_values, alpha=-group['lr'])
+                        group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                        avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
         
 
 class RMSProp(Optimizer):
@@ -91,35 +91,37 @@ class RMSProp(Optimizer):
         super(RMSProp, self).__init__(params, defaults)
 
     def step(self):
+        loss = None
         for group in self.param_groups:
             for l, p in enumerate(group['params']):
                 if p.grad is None:
                     continue
-                else:
-                    if group['operator'] is None:
-                        grad_values = p.grad
-                        if l not in group['vt']:
-                            group['vt'][l] = (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2)
-                        else:
-                            group['vt'][l].add_(group['alpha'] * group['vt'][l] + (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2))
+                
+                if group['operator'] is None:
+                    grad_values = p.grad
+                    if l not in group['vt']:
+                        group['vt'][l] = torch.zeros_like(p.data)
 
-                        grad_values = grad_values/(group['vt'][l].sqrt().to(grad_values.device) + group['eps'])
-                        p.data.add_(grad_values, alpha=-group['lr'])   
-                        
+                    group['vt'][l].mul_(group['alpha']).addcmul_(grad_values, grad_values, value=1 - group['alpha'])
+                    avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                    p.data.addcdiv_(-group['lr'], grad_values, avg)
+                    
+                else:
+                    if l not in group['old_params']:
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+                        grad_values = p.grad
+                        group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
+                        avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
                     else:
-                        if l not in group['old_params']:
-                            group['old_params'][l] = p.data.clone().detach()
-                            grad_values = p.grad
-                            group['vt'][l] = (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2)
-                            scaled_grad = grad_values / (group['vt'][l].sqrt().to(grad_values.device) + group['eps'])
-                            p.data.add_(scaled_grad, alpha=-group['lr'])
-                        else:
-                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
-                            group['old_params'][l] = p.data.clone().detach()
-                            group['vt'][l].add_(group['alpha'] * group['vt'][l] + (1 - group['alpha']) * torch.pow(grad_values.detach().cpu(), 2))
-                            grad_values = grad_values/(group['vt'][l].sqrt().to(grad_values.device) + group['eps'])
-                            p.data.add_(grad_values, alpha=-group['lr'])
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
+                        avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
+        return loss
 
 
 class Adam(Optimizer):
@@ -139,15 +141,15 @@ class Adam(Optimizer):
                     if group['operator'] is None:
                         grad_values = p.grad
                         if l not in group['mt']:
-                            group['mt'][l] = torch.zeros_like(p.data)
-                            group['vt'][l] = torch.zeros_like(p.data)
-                        else:
-                            group['mt'][l] = beta1 * group['mt'][l].detach().cpu() + (1 - beta1) * grad_values.detach().cpu()
-                            group['vt'][l] = beta2 * group['vt'][l].detach().cpu() + (1 - beta2) * torch.pow(grad_values.detach().cpu(), 2)
+                            group['mt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
                         
+                        group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                        group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
+                    
                         mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
                         vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
-                        grad_values =  mt_hat / (vt_hat.sqrt() + group['eps'])
+                        grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
                         p.data.add_(grad_values, alpha=-group['lr'])
 
                     else:
@@ -155,22 +157,24 @@ class Adam(Optimizer):
                             grad_values = p.grad
                             group['old_params'][l] = p.data.clone().detach()
                             group['old_params'][l].grad = p.grad.clone()
-                            group['mt'][l] = torch.zeros_like(p.data)
-                            group['vt'][l] = torch.zeros_like(p.data)
-                            group['mt'][l] = beta1 * group['mt'][l].detach().cpu() + (1 - beta1) * grad_values.detach().cpu()
-                            group['vt'][l] = beta2 * group['vt'][l].detach().cpu() + (1 - beta2) * torch.pow(grad_values.detach().cpu(), 2)
+                            group['mt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                            group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
+
                             mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
                             vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
-                            grad_values =  mt_hat / (vt_hat.sqrt() + group['eps'])
+                            grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
                             p.data.add_(grad_values, alpha=-group['lr'])
                         else:
                             second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
                             grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
                             group['old_params'][l] = p.data.clone().detach()
                             group['old_params'][l].grad = p.grad.clone()
-                            group['mt'][l] = beta1 * group['mt'][l].detach().cpu() + (1 - beta1) * grad_values.detach().cpu()
-                            group['vt'][l] = beta2 * group['vt'][l].detach().cpu() + (1 - beta2) * torch.pow(grad_values.detach().cpu(), 2)
+                            group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                            group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
+
                             mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
                             vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
-                            grad_values =  mt_hat / (vt_hat.sqrt() + group['eps'])
+                            grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
                             p.data.add_(grad_values, alpha=-group['lr'])
