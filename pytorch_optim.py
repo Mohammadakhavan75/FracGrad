@@ -75,6 +75,7 @@ class AdaGrad(Optimizer):
                         grad_values = p.grad
                         group['sum_of_squared_grads'][l] = torch.zeros_like(p.data.detach().cpu())
                         group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                        avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
                         p.data.addcdiv_(-group['lr'], grad_values, avg)
                     else:
                         second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
@@ -102,7 +103,7 @@ class RMSProp(Optimizer):
                     if l not in group['vt']:
                         group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
 
-                    group['vt'][l].mul_(group['alpha']).addcmul_(grad_values, grad_values, value=1 - group['alpha'])
+                    group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
                     avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
                     p.data.addcdiv_(-group['lr'], grad_values, avg)
                     
