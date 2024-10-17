@@ -18,6 +18,7 @@ from tqdm import tqdm
 # Define model
 def init_model(args):
     if args.torch:
+        print("Using built-in torch optimizers!")
         from torch.optim.rmsprop import RMSprop as RMSProp
         from torch.optim.adam import Adam
         from torch.optim.adagrad import Adagrad as AdaGrad
@@ -27,6 +28,8 @@ def init_model(args):
 
     if args.model == 'fc1':
         model = Net(3072, 128, 10)
+    if args.model == 'mnist':
+        model = net_mnist()
     if args.model == 'resnet18':
         model = ResNet18(10)
     model = model.to(args.device)
@@ -106,42 +109,20 @@ class Net(nn.Module):
         # out = self.softmax(out)
         return out
 
-# Load and preprocess the MNIST dataset
-# def load_mnist():
-#     # transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-#     transform = transforms.Compose([transforms.ToTensor()])
-#     train_dataset = MNIST(root='./data', train=True, transform=transform, download=True)
-#     test_dataset = MNIST(root='./data', train=False, transform=transform, download=True)
-    
-#     train_size = int(0.8 * len(train_dataset))
-#     val_size = len(train_dataset) - train_size
-#     train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
-    
-#     train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
-#     val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=False)
-#     test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
-    
-#     return train_loader, val_loader, test_loader
+class net_mnist(nn.Module):
+    def __init__(self):
+        super(net_mnist, self).__init__()
+        self.fc1 = nn.Linear(784, 128)  # input layer (28x28 images) -> hidden layer (128 units)
+        self.fc2 = nn.Linear(128, 64)   # hidden layer (128 units) -> hidden layer (64 units)
+        self.fc3 = nn.Linear(64, 10)    # hidden layer (64 units) -> output layer (10 units)
 
+    def forward(self, x):
+        x = x.view(-1, 784)
+        x = torch.relu(self.fc1(x))     # activation function for hidden layers
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 
-def load_cifar10():
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
-    ])
-    
-    train_dataset = CIFAR10(root='D:/Datasets/data', train=True, transform=transform, download=True)
-    test_dataset = CIFAR10(root='D:/Datasets/data', train=False, transform=transform, download=True)
-    
-    train_size = int(0.8 * len(train_dataset))
-    val_size = len(train_dataset) - train_size
-    train_dataset, val_dataset = random_split(train_dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(dataset=train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=32, shuffle=False)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=32, shuffle=False)
-    
-    return train_loader, val_loader, test_loader
 
 # Train the model
 def train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=5):
@@ -155,7 +136,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, args, epo
         
     os.makedirs(root_addr)
     print(root_addr)
-    save_path = root_addr + f'cifar10_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
+    save_path = root_addr + f'{args.dataset}_{args.model}_{args.lr}_{args.optimizer}_epochs_{epochs}_{args.operator}_alpha1_{args.alphas[0]}_alpha2_{args.alphas[1]}/'
     model_save_path = os.path.join(save_path, 'models')
     os.makedirs(model_save_path, exist_ok=True)
     
@@ -221,7 +202,6 @@ def evaluate_model(model, test_loader, criterion):
     te_loss = 0
     with torch.no_grad():
         for images, labels in test_loader:
-            images = images.view(-1, 28*28)
             outputs = model(images)
             loss = criterion(outputs, labels)
             _, predicted = torch.max(outputs.data, 1)
@@ -263,6 +243,7 @@ def main():
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--torch', action="store_true")
     parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--dataset', type=str, default='mnist')
     args = parser.parse_args()
 
     args.alphas = [float(x) for x in eval(args.alphas)]
@@ -276,7 +257,12 @@ def main():
         os.environ['CUDA_VISIBLE_DEVICES']='0,1'
         args.device=f'cuda:{args.gpu}'
 
-    train_loader, val_loader, test_loader = load_cifar10()
+    from dataloader import load_mnist, load_cifar10
+    if args.dataset == 'mnist':
+        train_loader, val_loader = load_mnist('D:/Datasets/data')
+    elif  args.dataset == 'cifar10':
+        train_loader, val_loader = load_cifar10('D:/Datasets/data')
+   
     
     input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
     hidden_size = 256
@@ -287,7 +273,7 @@ def main():
     # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
     # optimizer= psgd(model.parameters(),  lr=args.lr)
-    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=50)
+    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=10)
     # test_loss = evaluate_model(model, test_loader)
 
     # diaplying model train_loss
