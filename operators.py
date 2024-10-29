@@ -34,6 +34,10 @@ class operators():
         delta_alpha = d_alpha
         
         # OMEGA = (2 * (alpha - self.alpha1))
+        # integral_left = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+
+        #  1/(alph2 - alpha1)
         integral_left = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
         integral_right = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
