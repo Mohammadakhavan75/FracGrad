@@ -6,6 +6,7 @@ from torchvision.datasets import MNIST
 from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader, random_split
 import numpy as np
+from sklearn.decomposition import PCA
 # import matplotlib.pyplot as plt
 import argparse
 import time
@@ -28,10 +29,15 @@ def init_model(args):
 
     if args.model == 'fc1':
         model = Net(3072, 128, 10)
-    if args.model == 'mnist':
+    elif args.model == 'mnist':
         model = net_mnist()
-    if args.model == 'resnet18':
+    elif args.model == 'mnist_pca':
+        model = net_mnist_pca()
+    elif args.model == 'resnet18':
         model = ResNet18(10)
+    elif args.model == 'netx2':
+        model = net_x2()
+
     model = model.to(args.device)
     criterion = nn.CrossEntropyLoss().to(args.device)
     # criterion = nn.MSELoss()
@@ -54,7 +60,7 @@ def init_model(args):
     else:
         raise ValueError(f"Unknown gradient function: {args.grad}")
 
-    OPT = operators(G, alpha1=args.alphas[0], alpha2=args.alphas[1])
+    OPT = operators(G, alpha1=args.alphas[0], alpha2=args.alphas[1], N=args.integral_step)
 
     if args.operator == "integer":
         OPT = None
@@ -122,6 +128,28 @@ class net_mnist(nn.Module):
         x = torch.relu(self.fc2(x))
         x = self.fc3(x)
         return x
+
+
+class net_mnist_pca(nn.Module):
+    def __init__(self):
+        super(net_mnist_pca, self).__init__()
+        
+        self.fc1 = nn.Linear(10, 10)  # input layer (28x28 images) -> hidden layer (128 units)
+        self.fc2 = nn.Linear(10, 10)   # hidden layer (128 units) -> hidden layer (64 units)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))     # activation function for hidden layers
+        x = self.fc2(x)
+        return x
+
+
+class net_x2(nn.Module):
+    def __init__(self):
+        super(net_x2, self).__init__()
+        self.fc1 = nn.Linear(1, 1)
+
+    def forward(self, x):
+        return self.fc1(x)
 
 
 # Train the model
@@ -243,7 +271,9 @@ def main():
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--torch', action="store_true")
     parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--dataset', type=str, default='mnist')
+    parser.add_argument('--integral_step', type=int, default=50)
     args = parser.parse_args()
 
     args.alphas = [float(x) for x in eval(args.alphas)]
@@ -257,12 +287,15 @@ def main():
         os.environ['CUDA_VISIBLE_DEVICES']='0,1'
         args.device=f'cuda:{args.gpu}'
 
-    from dataloader import load_mnist, load_cifar10
+    from dataloader import load_mnist, load_cifar10, load_mnist_pca, load_x2
     if args.dataset == 'mnist':
         train_loader, val_loader = load_mnist('D:/Datasets/data')
     elif  args.dataset == 'cifar10':
         train_loader, val_loader = load_cifar10('D:/Datasets/data')
-   
+    elif args.dataset == 'mnist_pca':
+        train_loader, val_loader = load_mnist_pca()
+    elif args.dataset == 'x2':
+        train_loader, val_loader = load_x2()
     
     input_size = 32 * 32 * 3  # CIFAR-10 image size (32x32) with 3 color channels
     hidden_size = 256
@@ -273,7 +306,7 @@ def main():
     # criterion = nn.CrossEntropyLoss()
     optimizer, model, criterion = init_model(args)
     # optimizer= psgd(model.parameters(),  lr=args.lr)
-    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=10)
+    train_loss = train_model(model, train_loader, val_loader, criterion, optimizer, args, epochs=args.epochs)
     # test_loss = evaluate_model(model, test_loader)
 
     # diaplying model train_loss

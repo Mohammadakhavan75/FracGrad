@@ -214,3 +214,58 @@ def load_cifar100(path, batch_size=64, num_workers=0, coarse=True):
 
     return train_loader, test_loader
 
+def load_mnist_pca(batch_size=64, num_workers=0):
+    print('loading mnist pca applied!')
+    data_transforms = transforms.Compose([transforms.ToTensor()])
+    
+    train_data = load_np_dataset("train_mnist_pca10.npy", "train_mnist_pca10_labels.npy", data_transforms)
+    test_data = load_np_dataset("test_mnist_pca10.npy", "test_mnist_pca10_labels.npy", data_transforms)
+
+    train_loader = DataLoader(train_data, shuffle=True, batch_size=batch_size, num_workers=num_workers)
+    val_loader = DataLoader(test_data, shuffle=True, batch_size=batch_size, num_workers=num_workers)
+
+    return train_loader, val_loader
+
+def load_x2(batch_size=64, num_workers=0):
+    print('loading mnist pca applied!')
+    # data_transforms = transforms.Compose([transforms.ToTensor()])
+    
+    train_data = x2_dataset()
+    test_data = x2_dataset()
+
+    train_loader = DataLoader(train_data, shuffle=True, batch_size=batch_size, num_workers=num_workers)
+    val_loader = DataLoader(test_data, shuffle=True, batch_size=batch_size, num_workers=num_workers)
+
+    return train_loader, val_loader
+
+import PIL
+import torch
+import numpy as np
+class load_np_dataset(torch.utils.data.Dataset):
+    def __init__(self, imgs_path, targets_path, transform):
+        self.data = np.load(imgs_path)
+        self.targets = np.load(targets_path)
+
+        self.transform = transform
+        
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img , target = self.data[idx], self.targets[idx]
+            
+        img = torch.tensor(img)
+
+        return img, target
+
+class x2_dataset(torch.utils.data.Dataset):
+    def __init__(self):
+        self.datas = torch.rand(10000)
+        self.lables = self.datas * 2
+
+    def __len__(self):
+        return len(self.datas)
+
+    def __getitem__(self, idx):
+        img , target = self.datas[idx], self.lables[idx]
+        return img, target
