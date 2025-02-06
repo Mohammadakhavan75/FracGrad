@@ -33,19 +33,56 @@ class operators():
         # delta_alpha = (self.alpha2 - self.alpha1)
         delta_alpha = d_alpha
         
-        # OMEGA = (2 * (alpha - self.alpha1))
-        # integral_left = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
-        # integral_right = lambda alpha: ((2 / ((self.alpha2 - self.alpha1) ** 2 )) * (alpha - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        # OMEGA = 1  # exp_3
+        # integral_left = lambda alpha: 1 * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: 1 * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        
+        
+        # integral_left = lambda alpha: 1 * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: 1 * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
 
+        
         # OMEGA = 1/(alph2 - alpha1)
         # integral_left = lambda alpha: (1/(self.alpha2 - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
         # integral_right = lambda alpha: (1/(self.alpha2 - self.alpha1)) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
+        # OMEGA = exp(-|alpha - 1|) # exp_4
         # integral_left = lambda alpha: torch.exp(-torch.abs(torch.tensor(alpha - 1))) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
         # integral_right = lambda alpha: torch.exp(-torch.abs(torch.tensor(alpha - 1))) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
-        integral_left = lambda alpha: - torch.log(torch.tensor(alpha) - 1) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
-        integral_right = lambda alpha: - torch.log(torch.tensor(alpha) - 1) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        # OMEGA = exp(-5|alpha - 1|) # exp_5
+        # integral_left = lambda alpha: torch.exp(-5 * torch.abs(torch.tensor(alpha - 1))) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-5 * torch.abs(torch.tensor(alpha - 1))) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        
+        # OMEGA = exp(-(alpha - 1)^2) # exp_6
+        # integral_left = lambda alpha: torch.exp(-(torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-(torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        
+        # OMEGA = exp(-5 * (alpha - 1)^2) # exp_7
+        # integral_left = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of 
+        # OMEGA = 10 * exp(-5 * (alpha - 1)^2) # exp_8 alphas [0.9, 1.1]
+        # integral_left = lambda alpha: 10 * torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: 10 * torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the absbecause of negetive under square
+        
+        # OMEGA = exp(-5 * (alpha - 1)^2) # exp_9 alphas [0.9, 1.1]
+        # integral_left = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of 
+        
+        # OMEGA = exp(-5 * (alpha - 1)^2) # exp_10 alphas [0.8, 1.2]
+        # integral_left = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of 
+        # OMEGA = exp(-5 * (alpha - 1)^2) # exp_11 alphas [0.5, 1.5]
+        # integral_left = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: torch.exp(-5 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of 
+        # OMEGA = 15 exp(-10 * (alpha - 1)^2) # exp_12 alphas [0.9, 1.1]
+        integral_left = lambda alpha: 15 * torch.exp(-10 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        integral_right = lambda alpha: 15 * torch.exp(-10 * (torch.tensor(alpha - 1))**2) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of 
+
+        # integral_left = lambda alpha: - torch.log(torch.abs(torch.tensor(alpha) - 1)) * torch.sign(torch.tensor(alpha) - 1) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: - torch.log(torch.abs(torch.tensor(alpha) - 1)) * torch.sign(torch.tensor(alpha) - 1) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
+        # integral_left = lambda alpha: 150 * torch.exp(1/(torch.log(torch.abs(torch.tensor(alpha -1 ))))) * (1 / (torch.exp(torch.lgamma(torch.tensor(2 - alpha))))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - alpha)
+        # integral_right = lambda alpha: 150 * torch.exp(1/(torch.log(torch.abs(torch.tensor(alpha -1 ))))) * (1 / (torch.exp(torch.lgamma(torch.tensor(3 - alpha))))) * second_order_grad * torch.abs(p.data.detach() - pm_1.data.detach()) ** (2 - alpha) # we cannot ignore the abs because of negetive under square
         
         delta = delta_alpha * integral_left(self.alpha1) * 0.5
         # delta = delta_alpha * integral_left(self.alpha1)
