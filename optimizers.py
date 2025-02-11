@@ -1,8 +1,4 @@
 import numpy as np
-from scipy.special import gamma
-from scipy.integrate import quad
-import matplotlib.pyplot as plt
-
 
 class SGD():
     def __init__(self, operator):
