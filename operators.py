@@ -1,6 +1,4 @@
-from scipy.special import gamma
 import torch
-import numpy as np
 
 class operators():
     def __init__(self, grad_func, alpha=0.9) -> None:
