@@ -12,5 +12,5 @@ class operators():
 
 
     def fractional(self, p, pm_1):
-        return (1 / torch.exp(torch.lgamma(torch.tensor(2 - self.alpha1)))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - self.alpha1)
+        return (1 / torch.exp(torch.lgamma(torch.tensor(2 - self.alpha)))) * p.grad.detach() * torch.abs(p.data.detach() - pm_1.data.detach()) ** (1 - self.alpha)
     
