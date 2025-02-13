@@ -1,106 +1,165 @@
+from torch.optim.optimizer import Optimizer
+import torch.nn.functional as F
 import numpy as np
+import random
+import torch
+from torch.optim.optimizer import Optimizer
 
-class SGD():
-    def __init__(self, operator):
-        self.operator = operator
-    
-    def optimize(self, w_old, model, lr=0.03, max_iter=10, return_history=False):
-        history = [w_old]
-        for i in range(max_iter):
-            w_new = w_old - lr * self.operator(history, i, lr)
-            w_old = w_new
-            model.w_flatten = w_new.copy()
-       
 
-class Adagrad():
-    def __init__(self, operator):
-        self.operator = operator
-    
-    def optimize(self, w_old, model, lr=0.03, max_iter=10, epsilon=1e-8, return_history=False):
-        history = [w_old]
-        grad_squared_accum = np.zeros_like(w_old)  # Initialize the accumulator
+class SGD(Optimizer):
+    def __init__(self, params, operator=None, lr=0.03, momentum=0, weight_decay=0, nesterov=False, maximize=False):
+        defaults = dict(lr=lr, operator=operator, old_params={})
+        super(SGD, self).__init__(params, defaults)
+
+    def step(self):
+        for group in self.param_groups:
+            for l, p in enumerate(group['params']):
+                if p.grad is None: # check if any grad value are available
+                    continue
+                
+                if group['operator'] is None:
+                    p.data.add_(p.grad, alpha=-group['lr'])
+                
+                else:
+                    if l not in group['old_params']: # this will run only for first iteration to fill the old_params value
+                        group['old_params'][l] = p.data.clone().detach()
+                        p.data.add_(p.grad, alpha=-group['lr'])
+
+                    else: # continue_of_the_iterations
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads) # calculating grads using new operators
+                        group['old_params'][l] = p.data.clone().detach() # updating old parameters
+                        p.data.add_(grad_values, alpha=-group['lr']) # updating the params based on grad values
+
+
+class AdaGrad(Optimizer):
+    def __init__(self, params, operator, lr=0.03, eps=1e-10):
+        defaults = dict(lr=lr, operator=operator, eps=eps, sum_of_squared_grads={}, old_params={})
+        super(AdaGrad, self).__init__(params, defaults)
+
+    def step(self):
+        for group in self.param_groups:
+            for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
         
-        for i in range(max_iter):
-            grad = self.operator(history, i, lr)
-            grad_squared_accum += grad ** 2  # Accumulate the squared gradients
-            adjusted_lr = lr / (np.sqrt(grad_squared_accum) + epsilon)  # Adjust learning rate
-            
-            w_new = w_old - adjusted_lr * grad
-            w_old = w_new
-            model.w_flatten = w_new.copy()
+                if group['operator'] is None:
+                    grad_values = p.grad
+                    if l not in group['sum_of_squared_grads']:
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data.detach().cpu())
 
-
-class RMSProp():
-    def __init__(self, operator):
-        self.operator = operator
-    
-    def optimize(self, w_old, model, lr=0.001, beta=0.9, epsilon=1e-8, max_iter=10, return_history=False):
-        history = [w_old]
-        grad_squared_accum = np.zeros_like(w_old)  # Initialize the accumulator
+                    group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                    # multiply the adjustmnet of lr into grad values
+                    avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                    p.data.addcdiv_(-group['lr'], grad_values, avg)
+                
+                else:
+                    if l not in group['old_params']:
+                        group['old_params'][l] = p.data.clone().detach()
+                        grad_values = p.grad
+                        group['sum_of_squared_grads'][l] = torch.zeros_like(p.data.detach().cpu())
+                        group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                        avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
+                    else:
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['sum_of_squared_grads'][l].addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=0)
+                        avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
         
-        for i in range(max_iter):
-            grad = self.operator(history, i, lr)
-            grad_squared_accum = beta * grad_squared_accum + (1 - beta) * grad ** 2  # Exponentially decay the average of squared gradients
-            adjusted_lr = lr / (np.sqrt(grad_squared_accum) + epsilon)  # Adjust learning rate
-            
-            w_new = w_old - adjusted_lr * grad
-            w_old = w_new
-            model.w_flatten = w_new.copy()
 
-class Adam():
-    def __init__(self, operator):
-        self.operator = operator
-    
-    def optimize(self, w_old, model, lr=0.001, beta1=0.9, beta2=0.999, epsilon=1e-8, max_iter=10, return_history=False):
-        history = [w_old]
-        m = np.zeros_like(w_old)  # Initialize the first moment vector
-        v = np.zeros_like(w_old)  # Initialize the second moment vector
-        
-        for i in range(1, max_iter + 1):
-            grad = self.operator(history, i, lr)
-            
-            m = beta1 * m + (1 - beta1) * grad  # Update biased first moment estimate
-            v = beta2 * v + (1 - beta2) * grad ** 2  # Update biased second moment estimate
-            
-            m_hat = m / (1 - beta1 ** i)  # Correct bias in first moment
-            v_hat = v / (1 - beta2 ** i)  # Correct bias in second moment
-            
-            w_new = w_old - lr * m_hat / (np.sqrt(v_hat) + epsilon)
-            w_old = w_new
-            model.w_flatten = w_new.copy()
-            
+class RMSProp(Optimizer):
+    def __init__(self, params, operator, lr=0.01, eps=1e-8, alpha=0.99):
+        defaults = dict(lr=lr, operator=operator, eps=eps, alpha=alpha, vt={}, old_params={})
+        super(RMSProp, self).__init__(params, defaults)
+
+    def step(self):
+        loss = None
+        for group in self.param_groups:
+            for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
+                
+                if group['operator'] is None:
+                    grad_values = p.grad
+                    if l not in group['vt']:
+                        group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+
+                    group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
+                    avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                    p.data.addcdiv_(-group['lr'], grad_values, avg)
+                    
+                else:
+                    if l not in group['old_params']:
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+                        grad_values = p.grad
+                        group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
+                        avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
+                    else:
+                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        group['old_params'][l] = p.data.clone().detach()
+                        group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
+                        avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
+                        p.data.addcdiv_(-group['lr'], grad_values, avg)
+        return loss
 
 
+class Adam(Optimizer):
+    def __init__(self, params, operator, lr=0.001, eps=1e-8, betas=(0.9, 0.999)):
+        defaults = dict(lr=lr, operator=operator, eps=eps, betas=betas,
+                        mt={}, vt={}, t=0, old_params={})
+        super(Adam, self).__init__(params, defaults)
 
-def gen_frac_opt(self, f, x, mdoel, D, lr=0.3, max_iter=10):
-    history = [x]
-    for _ in range(max_iter):
-        w_new = x - lr * D
-        if f(w_new) < f(x):
-            x = w_new
-            mdoel.w_flatten = w_new.copy()
-        else:
-            lr = 0.8*lr
-            if isinstance(lr, list):
-                if np.mean(lr) < 0.1 ** 12:
-                    break
-            elif lr < 0.1 ** 12:
-                break
-            
-        history.append(w_new)
+    def step(self):
+        for group in self.param_groups:
+            beta1, beta2 = group['betas']
+            group['t'] += 1
+            for l, p in enumerate(group['params']):
+                if p.grad is None:
+                    continue
+                else:
+                    if group['operator'] is None:
+                        grad_values = p.grad
+                        if l not in group['mt']:
+                            group['mt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+                        
+                        group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                        group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
+                    
+                        mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
+                        vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
+                        grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
+                        p.data.add_(grad_values, alpha=-group['lr'])
 
-def easy_frac_opt(self, f, x, D, lr=0.3, max_iter=10):
-    for _ in range(max_iter):
-        w_new = x.copy()
-        for i in range(x.shape[0]):
-            w_new[i] = x[i] - lr * D(f, x[i])
+                    else:
+                        if l not in group['old_params']:
+                            grad_values = p.grad
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            group['mt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['vt'][l] = torch.zeros_like(p.data.detach().cpu())
+                            group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                            group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
 
-        if f(w_new) < f(x):
-            x = w_new
-        else:
-            lr = 0.8 * lr
-            if isinstance(lr, list):
-                if np.mean(lr) < 0.1 ** 12:
-                    break
-            elif lr < 0.1 ** 12:
-                break
+                            mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
+                            vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
+                            grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
+                            p.data.add_(grad_values, alpha=-group['lr'])
+                        else:
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                            group['old_params'][l] = p.data.clone().detach()
+                            group['old_params'][l].grad = p.grad.clone()
+                            group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
+                            group['vt'][l].mul_(beta2).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - beta2)
+
+                            mt_hat = group['mt'][l].to(grad_values.device) / (1 - beta1 ** group['t'])
+                            vt_hat = group['vt'][l].to(grad_values.device) / (1 - beta2 ** group['t'])
+                            grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
+                            p.data.add_(grad_values, alpha=-group['lr'])
