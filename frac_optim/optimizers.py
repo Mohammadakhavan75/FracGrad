@@ -86,7 +86,7 @@ class AdaGrad(Optimizer):
         lr (float, optional): Learning rate.
         eps (float, optional): Term added to the denominator to improve numerical stability.
     """
-    def __init__(self, params, operator, lr=0.03, eps=1e-10):
+    def __init__(self, params, operator=None, lr=0.03, eps=1e-10):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, sum_of_squared_grads={}, old_params={})
@@ -163,7 +163,7 @@ class RMSProp(Optimizer):
         eps (float, optional): Term added to the denominator to improve numerical stability (default: 1e-8).
         alpha (float, optional): Smoothing constant (default: 0.99).
     """
-    def __init__(self, params, operator, lr=0.01, eps=1e-8, alpha=0.99):
+    def __init__(self, params, operator=None, lr=0.01, eps=1e-8, alpha=0.99):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, alpha=alpha, vt={}, old_params={})
@@ -235,7 +235,7 @@ class Adam(Optimizer):
         betas (Tuple[float, float], optional): Coefficients used for computing running averages of gradient and its square
             (default: (0.9, 0.999)).
     """
-    def __init__(self, params, operator, lr=0.001, eps=1e-8, betas=(0.9, 0.999)):
+    def __init__(self, params, operator=None, lr=0.001, eps=1e-8, betas=(0.9, 0.999)):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, betas=betas,
