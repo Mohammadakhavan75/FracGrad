@@ -4,7 +4,7 @@ import torch.nn as nn
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from frac_optim.optimizers import SGD
+from FracGrad.optimizers import SGD
 
 class TestSGD(unittest.TestCase):
     def test_standard_update(self):
