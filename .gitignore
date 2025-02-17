@@ -1,3 +1,7 @@
 __pycache__/
 temp.ipynb
 .zshrc
+build/
+dist/
+*.egg-info/
+pip_package_instruction.txt
