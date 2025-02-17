@@ -25,9 +25,7 @@ Ensure you have PyTorch installed. You can install PyTorch by following the inst
 
 Clone this repository and add it to your Python path:
 ```bash
-git clone https://github.com/your_username/fractional-optimizers.git
-cd fractional-optimizers
-pip install -r requirements.txt
+pip install FracGrad
 ```
 
 ## Usage
@@ -40,7 +38,7 @@ To use the fractional optimizers, import the desired optimizer and the fractiona
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from optimizers import SGD, AdaGrad, RMSProp, Adam
+from FracGrad import SGD, AdaGrad, RMSProp, Adam
 from operators import fractional
 
 # Define a simple model
