@@ -4,7 +4,7 @@ import torch.nn as nn
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from frac_optim.optimizers import Adam
+from FracGrad.optimizers import Adam
 
 class TestAdam(unittest.TestCase):
     def test_standard_update(self):
