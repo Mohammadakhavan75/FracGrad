@@ -28,6 +28,11 @@ class SGD(Optimizer):
     def __init__(self, params, operator=None, lr=0.03, momentum=0, weight_decay=0, nesterov=False, maximize=False):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
+        
+        # Check if unsupported features are being used with a custom operator (fractional updates)
+        if operator is not None and (momentum != 0 or weight_decay != 0 or nesterov or maximize):
+            raise NotImplementedError("Momentum, weight_decay, nesterov, and maximize are not implemented for fractional updates")
+        
         defaults = dict(lr=lr, operator=operator, old_params={})
         super(SGD, self).__init__(params, defaults)
 
@@ -42,8 +47,14 @@ class SGD(Optimizer):
         """
         loss = None
         if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
+            if not callable(closure):
+                raise ValueError("closure must be a callable")
+            try:
+                with torch.enable_grad():
+                    loss = closure()
+            except Exception as e:
+                raise RuntimeError("Error evaluating closure: " + str(e))
+
 
         for group in self.param_groups:
             for l, p in enumerate(group['params']):
@@ -61,9 +72,21 @@ class SGD(Optimizer):
 
                     else:
                         # Compute second-order gradients.
-                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                        # Compute gradients using the provided operator.
-                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        try:
+                            # Compute second-order gradients.
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        except Exception as e:
+                            raise RuntimeError("Error computing second-order gradients: " + str(e))
+                    
+                        try:
+                            # Compute gradients using the provided operator.
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        except Exception as e:
+                                raise RuntimeError("Error in operator function: " + str(e))
+                        
+                        if not isinstance(grad_values, torch.Tensor):
+                                raise ValueError("Operator function must return a torch.Tensor, got type {}".format(type(grad_values)))
+                            
                         # Update the stored parameter state.
                         group['old_params'][l] = p.data.clone().detach()
                         # Updating the parameters using gradient values.
@@ -133,10 +156,21 @@ class AdaGrad(Optimizer):
                         avg = group['sum_of_squared_grads'][l].sqrt().add_(group['eps']).to(grad_values.device)
                         p.data.addcdiv_(-group['lr'], grad_values, avg) # TODO: Check if this is correct.
                     else:
-                        # Compute second-order gradients.
-                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                        # Compute gradients using the provided operator.
-                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        try:
+                            # Compute second-order gradients.
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        except Exception as e:
+                            raise RuntimeError("Error computing second-order gradients: " + str(e))
+                    
+                        try:
+                            # Compute gradients using the provided operator.
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        except Exception as e:
+                                raise RuntimeError("Error in operator function: " + str(e))
+                        
+                        if not isinstance(grad_values, torch.Tensor):
+                                raise ValueError("Operator function must return a torch.Tensor, got type {}".format(type(grad_values)))
+                            
                         # Update the stored parameter state.
                         group['old_params'][l] = p.data.clone().detach()
                         # Accumulate the squared gradients.
@@ -180,9 +214,14 @@ class RMSProp(Optimizer):
         """
         loss = None
         if closure is not None:
-            with torch.enable_grad():
-                loss = closure()
-
+            if not callable(closure):
+                raise ValueError("closure must be a callable")
+            try:
+                with torch.enable_grad():
+                    loss = closure()
+            except Exception as e:
+                raise RuntimeError("Error evaluating closure: " + str(e))
+            
         for group in self.param_groups:
             for l, p in enumerate(group['params']):
                 if p.grad is None:
@@ -207,10 +246,21 @@ class RMSProp(Optimizer):
                         avg = group['vt'][l].sqrt().add_(group['eps']).to(grad_values.device)
                         p.data.addcdiv_(-group['lr'], grad_values, avg) # TODO: Check if this is correct. p.addcdiv_(grad, avg, value=-lr)
                     else:
-                        # Compute second-order gradients.
-                        second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                        # Compute second-order gradients.
-                        grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        try:
+                            # Compute second-order gradients.
+                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                        except Exception as e:
+                            raise RuntimeError("Error computing second-order gradients: " + str(e))
+                    
+                        try:
+                            # Compute second-order gradients.
+                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                        except Exception as e:
+                                raise RuntimeError("Error in operator function: " + str(e))
+                        
+                        if not isinstance(grad_values, torch.Tensor):
+                                raise ValueError("Operator function must return a torch.Tensor, got type {}".format(type(grad_values)))
+                            
                         # Update the stored parameter state.
                         group['old_params'][l] = p.data.clone().detach()
                         group['vt'][l].mul_(group['alpha']).addcmul_(grad_values.detach().cpu(), grad_values.detach().cpu(), value=1 - group['alpha'])
@@ -294,9 +344,20 @@ class Adam(Optimizer):
                             grad_values =  mt_hat / (vt_hat.sqrt().add_(group['eps']))
                             p.data.add_(grad_values, alpha=-group['lr'])
                         else:
-                            # Compute second-order gradients and apply the custom operator.
-                            second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
-                            grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                            try:
+                                # Compute second-order gradients and apply the custom operator.
+                                second_order_grads = torch.autograd.grad(p.grad.sum(), p, create_graph=True)[0]
+                            except Exception as e:
+                                raise RuntimeError("Error computing second-order gradients: " + str(e))
+
+                            try:
+                                grad_values = group['operator'](p, group['old_params'][l], second_order_grads)
+                            except Exception as e:
+                                raise RuntimeError("Error in operator function: " + str(e))
+                        
+                            if not isinstance(grad_values, torch.Tensor):
+                                raise ValueError("Operator function must return a torch.Tensor, got type {}".format(type(grad_values)))
+                             
                             group['old_params'][l] = p.data.clone().detach()
                             group['old_params'][l].grad = p.grad.clone()
                             group['mt'][l].mul_(beta1).add_(grad_values.detach().cpu() * (1 - beta1))
