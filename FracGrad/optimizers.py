@@ -6,7 +6,7 @@ import torch
 from torch.optim.optimizer import Optimizer
 
 
-class SGD(Optimizer):
+class fSGD(Optimizer):
     r"""Implements stochastic gradient descent (optionally with a fractional gradient operator).
 
     This optimizer implements the classic stochastic gradient descent algorithm.
@@ -34,7 +34,7 @@ class SGD(Optimizer):
             raise NotImplementedError("Momentum, weight_decay, nesterov, and maximize are not implemented for fractional updates")
         
         defaults = dict(lr=lr, operator=operator, old_params={})
-        super(SGD, self).__init__(params, defaults)
+        super(fSGD, self).__init__(params, defaults)
 
     def step(self, closure=None):
         r"""Performs a single optimization step.
@@ -93,7 +93,7 @@ class SGD(Optimizer):
                         p.data.add_(grad_values, alpha=-group['lr'])
         return loss
 
-class AdaGrad(Optimizer):
+class fAdaGrad(Optimizer):
     r"""Implements the AdaGrad optimization algorithm with an optional fractional gradient operator.
 
     This optimizer adapts the learning rate for each parameter based on the historical sum
@@ -113,7 +113,7 @@ class AdaGrad(Optimizer):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, sum_of_squared_grads={}, old_params={})
-        super(AdaGrad, self).__init__(params, defaults)
+        super(fAdaGrad, self).__init__(params, defaults)
 
     def step(self, closure=None):
         r"""Performs a single optimization step.
@@ -182,7 +182,7 @@ class AdaGrad(Optimizer):
         return loss
         
 
-class RMSProp(Optimizer):
+class fRMSProp(Optimizer):
     r"""Implements the RMSProp optimization algorithm with an optional fractional gradient operator.
 
     RMSProp is an adaptive learning rate method which divides the learning rate for a weight by a running average of the magnitudes of recent gradients for that weight.
@@ -201,7 +201,7 @@ class RMSProp(Optimizer):
         if operator is not None and not callable(operator):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, alpha=alpha, vt={}, old_params={})
-        super(RMSProp, self).__init__(params, defaults)
+        super(fRMSProp, self).__init__(params, defaults)
 
     def step(self, closure=None):
         r"""Performs a single optimization step.
@@ -269,7 +269,7 @@ class RMSProp(Optimizer):
         return loss
 
 
-class Adam(Optimizer):
+class fAdam(Optimizer):
     r"""Implements the Adam optimization algorithm with an optional fractional gradient operator.
 
     Adam computes adaptive learning rates for each parameter from estimates of first and second moments of the gradients.
@@ -290,7 +290,7 @@ class Adam(Optimizer):
             raise ValueError("operator must be a callable or None")
         defaults = dict(lr=lr, operator=operator, eps=eps, betas=betas,
                         mt={}, vt={}, t=0, old_params={})
-        super(Adam, self).__init__(params, defaults)
+        super(fAdam, self).__init__(params, defaults)
 
     def step(self, closure=None):
         r"""Performs a single optimization step.
